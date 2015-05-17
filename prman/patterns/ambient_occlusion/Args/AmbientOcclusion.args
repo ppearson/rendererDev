@@ -1,0 +1,29 @@
+<args format="1.0">
+    <shaderType>
+        <tag value="pattern"/>
+    </shaderType>
+    <help>
+        Ambient Occlusion pattern
+    </help>
+    <param name="numSamples" type="int" default="4" widget="default">
+        <tags>
+         
+        </tags>
+    </param>
+	<param name="maxTraceDistance" type="float" default="100.0" widget="default">
+        <tags>
+         
+        </tags>
+    </param>
+
+    <output name="color"> 
+        <tags>
+            <tag value ="color"/>
+        </tags>
+    </output>
+    <output name="mask">
+        <tags>
+            <tag value ="float"/>
+        </tags>
+    </output>
+</args>
