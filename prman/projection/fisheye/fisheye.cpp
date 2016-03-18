@@ -143,11 +143,9 @@ void FisheyeProjection::Project(RixProjectionContext& pCtx)
 
 		if (rad > 1.0f)
 		{
-			// we can't sample this direction, so for the moment, send it upwards
-			ray.direction = RtVector3(0.0f, 1.0f, 0.0f);
-
-			// or do this instead?
-//			ray.maxDist = 0.001f;
+			// we can't sample this direction, so set it to upwards, which causes PRMan to discard it
+			ray.direction = RtVector3(0.0f, 0.0f, 0.0f);
+			continue;
 		}
 		else
 		{
@@ -155,7 +153,7 @@ void FisheyeProjection::Project(RixProjectionContext& pCtx)
 			float theta = std::atan2(screen.y, screen.x);
 
 			float sinPhi = std::sin(phi);
-			ray.direction = RtVector3(sinPhi * std::cos(theta), sinPhi * std::sin(theta), -std::cos(phi));
+			ray.direction = RtVector3(sinPhi * std::cos(theta), sinPhi * std::sin(theta), std::cos(phi));
 		}
 
 		ray.direction.Normalize();
