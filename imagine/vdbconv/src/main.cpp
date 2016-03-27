@@ -80,6 +80,14 @@ int main(int argc, char** argv)
 			{
 				sequence = true;
 			}
+			else if (argName == "sparse")
+			{
+				converter.setUseSparseGrid(true);
+			}
+			else if (argName == "dense")
+			{
+				converter.setUseSparseGrid(false);
+			}
 
 			argOffset += 1;
 		}

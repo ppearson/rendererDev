@@ -18,6 +18,8 @@
 
 #include "vdb_converter.h"
 
+#include "sparse_grid.h"
+
 VDBConverter::VDBConverter()
 {
 	m_sizeMultiplier = 2.0f;
@@ -297,8 +299,10 @@ bool VDBConverter::saveGrid(openvdb::FloatGrid::Ptr grid, const GridBounds& boun
 	{
 		return saveDenseGrid(grid, bounds, path);
 	}
-
-	return false;
+	else
+	{
+		return saveSparseGrid(grid, bounds, path);
+	}
 }
 
 bool VDBConverter::saveDenseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds& bounds, const std::string& path) const
@@ -312,7 +316,7 @@ bool VDBConverter::saveDenseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds&
 
 	float value = 0.0f;
 
-	unsigned char version = 1;
+	unsigned char version = 2;
 
 	unsigned int gridResX = bounds.max.x() - bounds.min.x() + 1;
 	unsigned int gridResY = bounds.max.y() - bounds.min.y() + 1;
@@ -341,11 +345,14 @@ bool VDBConverter::saveDenseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds&
 
 	fwrite(&version, 1, 1, pFinalFile);
 
-	unsigned char fileType = 0;
+	unsigned char dataType = 0;
 	if (m_storeAsHalf)
-		fileType = 1;
+		dataType = 1;
 
-	fwrite(&fileType, 1, 1, pFinalFile);
+	fwrite(&dataType, 1, 1, pFinalFile);
+
+	unsigned char gridType = 0; // dense
+	fwrite(&gridType, sizeof(unsigned char), 1, pFinalFile);
 
 	fwrite(&gridResX, sizeof(unsigned int), 1, pFinalFile);
 	fwrite(&gridResY, sizeof(unsigned int), 1, pFinalFile);
@@ -410,6 +417,161 @@ bool VDBConverter::saveDenseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds&
 		fwrite(pFinalValues, sizeof(half) * totalNumVoxels, 1, pFinalFile);
 
 		delete [] pFinalValues;
+	}
+
+	fclose(pFinalFile);
+
+	return true;
+}
+
+bool VDBConverter::saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds& bounds, const std::string& path) const
+{
+	openvdb::FloatGrid::Accessor accessor = grid->getAccessor();
+
+	openvdb::Coord ijk;
+	int &i = ijk[0];
+	int &j = ijk[1];
+	int &k = ijk[2];
+
+	unsigned char version = 2;
+
+	unsigned int gridResX = bounds.max.x() - bounds.min.x() + 1;
+	unsigned int gridResY = bounds.max.y() - bounds.min.y() + 1;
+	unsigned int gridResZ = bounds.max.z() - bounds.min.z() + 1;
+
+	openvdb::Vec3f extent((float)gridResX, (float)gridResY, (float)gridResZ);
+	extent.normalize();
+
+	extent *= m_sizeMultiplier;
+
+	float bbMinX = -extent.x();
+	float bbMinY = -extent.y();
+	float bbMinZ = -extent.z();
+
+	float bbMaxX = extent.x();
+	float bbMaxY = extent.y();
+	float bbMaxZ = extent.z();
+
+	FILE* pFinalFile = fopen(path.c_str(), "wb");
+
+	if (!pFinalFile)
+	{
+		fprintf(stderr, "Couldn't open file: %s for writing.\n", path.c_str());
+		return false;
+	}
+
+	fwrite(&version, 1, 1, pFinalFile);
+
+	unsigned char dataType = 0;
+	if (m_storeAsHalf)
+		dataType = 1;
+
+	fwrite(&dataType, 1, 1, pFinalFile);
+
+	unsigned char gridType = 1; // sparse
+	fwrite(&gridType, sizeof(unsigned char), 1, pFinalFile);
+
+	unsigned short subCellSize = 32; // TODO: make this customisable
+	fwrite(&subCellSize, sizeof(unsigned short), 1, pFinalFile);
+
+	fwrite(&gridResX, sizeof(unsigned int), 1, pFinalFile);
+	fwrite(&gridResY, sizeof(unsigned int), 1, pFinalFile);
+	fwrite(&gridResZ, sizeof(unsigned int), 1, pFinalFile);
+
+	fwrite(&bbMinX, sizeof(float), 1, pFinalFile);
+	fwrite(&bbMinY, sizeof(float), 1, pFinalFile);
+	fwrite(&bbMinZ, sizeof(float), 1, pFinalFile);
+
+	fwrite(&bbMaxX, sizeof(float), 1, pFinalFile);
+	fwrite(&bbMaxY, sizeof(float), 1, pFinalFile);
+	fwrite(&bbMaxZ, sizeof(float), 1, pFinalFile);
+
+	// create a sparse grid structure to temporarily store the data
+
+	SparseGrid sparseGrid;
+	sparseGrid.resizeGrid(gridResX, gridResY, gridResZ, (unsigned int)subCellSize);
+
+	// now write to the grid subcells
+
+	// indices for local access to subcells...
+	unsigned int iIndex = 0;
+	unsigned int jIndex = 0;
+	unsigned int kIndex = 0;
+
+	float value = 0.0f;
+
+	if (!m_storeAsHalf)
+	{
+		// full float
+
+		for (k = bounds.min.z(), kIndex = 0; k <= bounds.max.z(); k++, kIndex++)
+		{
+			for (j = bounds.min.y(), jIndex = 0; j <= bounds.max.y(); j++, jIndex++)
+			{
+				for (i = bounds.min.x(), iIndex = 0; i <= bounds.max.x(); i++, iIndex++)
+				{
+					value = accessor.getValue(ijk) * m_valueMultiplier;
+
+					sparseGrid.setVoxelValueFloat(iIndex, jIndex, kIndex, value);
+				}
+			}
+		}
+	}
+	else
+	{
+		// half
+
+		for (k = bounds.min.z(), kIndex = 0; k <= bounds.max.z(); k++, kIndex++)
+		{
+			for (j = bounds.min.y(), jIndex = 0; j <= bounds.max.y(); j++, jIndex++)
+			{
+				for (i = bounds.min.x(), iIndex = 0; i <= bounds.max.x(); i++, iIndex++)
+				{
+					value = accessor.getValue(ijk) * m_valueMultiplier;
+
+					sparseGrid.setVoxelValueFloat(iIndex, jIndex, kIndex, (half)value);
+				}
+			}
+		}
+	}
+
+	// now we need to store for each subcell whether they have data or not.
+	// because we know the subcell size and the full grid size, we can work out
+	// each subcell size on-the-fly, without having to store it
+
+	// TODO: is it worth writing the number of sub-cells just to be sure...?
+
+	std::vector<SparseGrid::SparseSubCell*>::const_iterator itSubCell = sparseGrid.getSubCells().begin();
+	for (; itSubCell != sparseGrid.getSubCells().end(); ++itSubCell)
+	{
+		const SparseGrid::SparseSubCell* pSubCell = *itSubCell;
+
+		static const unsigned char emptyVal = 0;
+		static const unsigned char fullVal = 1;
+
+		if (!pSubCell->isAllocated())
+		{
+			fwrite(&emptyVal, sizeof(unsigned char), 1, pFinalFile);
+		}
+		else
+		{
+			fwrite(&fullVal, sizeof(unsigned char), 1, pFinalFile);
+
+			// also write the data - we don't need to write the length, as we can
+			// reverse-engineer it when reading based on info we already have...
+			unsigned int cellDataLength = pSubCell->getResXY() * pSubCell->getResZ();
+
+			if (!m_storeAsHalf)
+			{
+				const float* pCellFloatData = pSubCell->getRawFloatData();
+				fwrite(pCellFloatData, sizeof(float), cellDataLength, pFinalFile);
+			}
+			else
+			{
+				const half* pCellHalfData = pSubCell->getRawHalfData();
+				fwrite(pCellHalfData, sizeof(half), cellDataLength, pFinalFile);
+			}
+		}
 	}
 
 	fclose(pFinalFile);

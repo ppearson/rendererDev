@@ -79,6 +79,7 @@ protected:
 	bool saveGrid(openvdb::FloatGrid::Ptr grid, const GridBounds& bounds, const std::string& path) const;
 
 	bool saveDenseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds& bounds, const std::string& path) const;
+	bool saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds& bounds, const std::string& path) const;
 
 	static std::string getFrameFileName(const std::string& fileName, unsigned int frame);
 
