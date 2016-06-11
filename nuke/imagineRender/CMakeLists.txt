@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.6)
-project (imagine_render)
+project (ImagineRender)
 
 enable_language(CXX)
 
@@ -51,9 +51,9 @@ include_directories(src)
 include_directories(${NDK_DIR}/include)
 FILE(GLOB_RECURSE imagine_render_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 
-ADD_LIBRARY(imagine_render SHARED ${imagine_render_SOURCES})
+ADD_LIBRARY(ImagineRender SHARED ${imagine_render_SOURCES})
 
-ADD_DEPENDENCIES(imagine_render imagineCore)
-SET_TARGET_PROPERTIES(imagine_render PROPERTIES PREFIX "")
+ADD_DEPENDENCIES(ImagineRender imagineCore)
+SET_TARGET_PROPERTIES(ImagineRender PROPERTIES PREFIX "")
 
-TARGET_LINK_LIBRARIES(imagine_render imagineCore ${CMAKE_THREAD_LIBS_INIT} ${EXTERNAL_LIBRARIES})
+TARGET_LINK_LIBRARIES(ImagineRender imagineCore ${CMAKE_THREAD_LIBS_INIT} ${EXTERNAL_LIBRARIES})
