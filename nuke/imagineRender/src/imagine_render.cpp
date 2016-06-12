@@ -81,6 +81,21 @@ void ImagineRenderIop::_validate(bool for_real)
 		m_pOutputImage = NULL;
 	}
 
+	// validate camera and scene/geo inputs
+	Op* pInput0 = Op::input(0);
+	if (dynamic_cast<CameraOp*>(pInput0))
+	{
+		CameraOp* pCam = dynamic_cast<CameraOp*>(pInput0);
+		pCam->validate(for_real);
+	}
+
+	Op* pInput1 = Op::input(1);
+	if (dynamic_cast<GeoOp*>(pInput1))
+	{
+		GeoOp* pScene = dynamic_cast<GeoOp*>(pInput1);
+		pScene->validate(for_real);
+	}
+
 	Op* pInput2 = Op::input(2);
 	if (dynamic_cast<Iop*>(pInput2))
 	{

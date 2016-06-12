@@ -181,7 +181,8 @@ void ImagineRenderIop::buildScene()
 
 			bool haveUVs = false;
 
-			const AttribContext* pUVs = srcGeoObject.get_attribcontext("uv");
+//			const AttribContext* pUVs = srcGeoObject.get_attribcontext("uv");
+			const AttribContext* pUVs = GetGeoInfoAttribContext(&srcGeoObject, "uv", VECTOR4_ATTRIB);
 			// check we've got valid UVs
 			if (pUVs && pUVs->attribute && pUVs->attribute->size())
 				haveUVs = true;
@@ -229,7 +230,14 @@ void ImagineRenderIop::buildScene()
 						// looks like we have to do the lookup this way, which means we can't index them
 						// to de-duplicate them, but hey...
 						const Vector4& uv = pUVs->vector4(nukeAttrIndices);
-						uvs.push_back(UV(uv.x, uv.y));
+
+						UV newUV(uv.x, uv.y);
+						// for projections (UVProject) we need to scale by the .w value
+						if (uv.w != 0.0f)
+						{
+							newUV /= uv.w;
+						}
+						uvs.push_back(newUV);
 					}
 
 					aPolyOffsets.push_back(numFaceVertices + polyOffsetLast);
