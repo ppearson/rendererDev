@@ -86,6 +86,8 @@ void ImagineRenderIop::_validate(bool for_real)
 	{
 		Iop* pBackground = dynamic_cast<Iop*>(pInput2);
 
+		pBackground->validate(real_valid());
+
 		m_imageWidth = pBackground->info().format().width();
 		m_imageHeight = pBackground->info().format().height();
 	}
@@ -128,7 +130,7 @@ void ImagineRenderIop::_validate(bool for_real)
 	// set lazy mode
 	m_scene.setLazy(true);
 
-	unsigned int threads = System::getNumberOfCores();
+	unsigned int threads = System::getNumberOfThreads();
 
 	m_pRaytracer = new Raytracer(m_scene, m_pOutputImage, m_renderSettings, false, threads);
 	m_pRaytracer->setHost(this);

@@ -161,21 +161,109 @@ void ImagineRenderIop::buildScene()
 
 		for (unsigned int objIndex = 0; objIndex < geoList.size(); objIndex++)
 		{
-			DD::Image::GeoInfo& object = geoList.object(objIndex);
+			const DD::Image::GeoInfo& srcGeoObject = geoList[objIndex];
 
+			StandardGeometryInstance* pNewGeoInstance = new StandardGeometryInstance();
+
+			unsigned int vertexIndexCount = 0;
+
+			std::vector<Point>& points = pNewGeoInstance->getPoints();
+
+//			const PointList* geomPoints = srcGeoObject.point_list();
+//			unsigned int numPoints = geomPoints->size();
+/*
+			for (unsigned int pointIndex = 0; pointIndex < numPoints; pointIndex++)
+			{
+				const Vector3& localPoint = (*geomPoints)[pointIndex];
+				points.push_back(Point(localPoint.x, localPoint.y, localPoint.z));
+			}
+*/
 			bool haveUVs = false;
 
-			const AttribContext* pUVs = object.get_attribcontext("uv");
+			const AttribContext* pUVs = srcGeoObject.get_attribcontext("uv");
 			// check we've got valid UVs
 			if (pUVs && pUVs->attribute && pUVs->attribute->size())
 				haveUVs = true;
 
-			if (object.material)
+			// check we've got valid UVs
+			if (haveUVs)
+			{
+				int uvGroupType = pUVs->group;
+				unsigned int numUVs = pUVs->attribute->size();
+
+				std::vector<UV>& uvs = pNewGeoInstance->getUVs();
+
+				for (unsigned int uvIndex = 0; uvIndex < numUVs; uvIndex++)
+				{
+					DD::Image::Vector4& sourceUV = pUVs->attribute->vector4(uvIndex);
+					UV newUV(sourceUV.x, sourceUV.y);
+
+					uvs.push_back(newUV);
+				}
+			}
+
+			unsigned int numPrims = srcGeoObject.primitives();
+
+			std::vector<uint32_t>& aPolyOffsets = pNewGeoInstance->getPolygonOffsets();
+
+			std::vector<uint32_t>& aPolyIndices = pNewGeoInstance->getPolygonIndices();
+
+			std::vector<uint32_t> aUVIndices;
+
+			unsigned int polyOffsetLast = 0;
+
+			for (unsigned int primIndex = 0; primIndex < numPrims; primIndex++)
+			{
+				const DD::Image::Primitive* prim = srcGeoObject.primitive(primIndex);
+
+				unsigned int numFaces = prim->faces();
+
+				for (unsigned int faceIndex = 0; faceIndex < numFaces; faceIndex++)
+				{
+					unsigned int numFaceVertices = prim->face_vertices(faceIndex);
+					// TODO: hoist this out of these loops
+					unsigned int* pFaceVertices = new unsigned int[numFaceVertices];
+					prim->get_face_vertices(faceIndex, pFaceVertices);
+
+					for (unsigned int vertexIndex = 0; vertexIndex < numFaceVertices; vertexIndex++)
+					{
+//						unsigned int thisVertexIndex = pFaceVertices[numFaceVertices - 1 - vertexIndex];
+						unsigned int thisVertexIndex = pFaceVertices[vertexIndex];
+
+						unsigned int pointIndex = prim->vertex(thisVertexIndex);
+
+						const Vector3& localPoint = srcGeoObject.point_array()[pointIndex];
+						points.push_back(Point(localPoint.x, localPoint.y, localPoint.z));
+
+						aPolyIndices.push_back(vertexIndexCount++);
+
+						// ???!
+						unsigned int uvIndex = prim->vertex_offset() + thisVertexIndex;
+						aUVIndices.push_back(uvIndex);
+					}
+
+					aPolyOffsets.push_back(numFaceVertices + polyOffsetLast);
+					polyOffsetLast += numFaceVertices;
+
+					if (pFaceVertices)
+						delete pFaceVertices;
+				}
+			}
+
+			if (haveUVs)
+			{
+				// for the moment, we can cheat here and pass in the point indices as UV indices
+				// which works for simple shapes, but obviously need to be changed at some point...
+				pNewGeoInstance->setUVIndices(aUVIndices);
+				pNewGeoInstance->setHasPerVertexUVs(true);
+			}
+
+			if (srcGeoObject.material)
 			{
 				// create a new material type which reads from an Iop and brute-force reads
 				// the full texture ahead of time...
 
-				Iop* pNukeMaterial = object.material;
+				Iop* pNukeMaterial = srcGeoObject.material;
 
 				pNukeMaterial->request(Mask_RGBA, 1);
 
@@ -198,6 +286,8 @@ void ImagineRenderIop::buildScene()
 					unsigned int width = pNukeMaterial->info().w();
 					unsigned int height = pNukeMaterial->info().h();
 
+					bool isConstant = (width == 1 && height == 1);
+
 					// this is going to be a bit stupid, as it won't detect constant alpha
 					bool haveAlpha = pNukeMaterial->info().channels().contains(Chan_Alpha);
 
@@ -208,50 +298,70 @@ void ImagineRenderIop::buildScene()
 					pNukeMaterial->fetchPlane(newImagePlane);
 					const float* pRawValues = newImagePlane.readable();
 
-					ImageColour3f* pNewColourImage = new ImageColour3f(width, height);
-					Image1f* pNewAlphaImage = NULL;
-					if (haveAlpha)
-					{
-						pNewAlphaImage = new Image1f(width, height);
-					}
-
-					for (unsigned int y = 0; y < height; y++)
-					{
-						for (unsigned int x = 0; x < width; x++)
-						{
-							float red = *pRawValues++;
-							float green = *pRawValues++;
-							float blue = *pRawValues++;
-
-							if (haveAlpha)
-							{
-								float alpha = *pRawValues++;
-
-								pNewAlphaImage->floatAt(x, y) = alpha;
-							}
-
-							Colour3f& imagePixel = pNewColourImage->colourAt(x, y);
-
-							imagePixel.r = red;
-							imagePixel.g = green;
-							imagePixel.b = blue;
-						}
-					}
-
 					pNewMat = new StandardMaterial();
 
-					if (pNewColourImage)
+					if (isConstant)
 					{
-						ImageTexture3f* pImageTexture = new ImageTexture3f(pNewColourImage, width, height);
-						pNewMat->setDiffuseColourManualTexture(pImageTexture);
-					}
+						float red = *pRawValues++;
+						float green = *pRawValues++;
+						float blue = *pRawValues++;
 
-					if (haveAlpha && pNewAlphaImage)
+						// detect black - if so, set it to grey just so we can see what's going on...
+						// to match ScanlineRender, we should leave this black, but that seems a bit stupid...
+
+						if (red == 0.0f && green == 0.0f && blue == 0.0f)
+						{
+							pNewMat->setDiffuseColour(Colour3f(0.4f));
+						}
+						else
+						{
+							pNewMat->setDiffuseColour(Colour3f(red, green, blue));
+						}
+					}
+					else
 					{
-						ImageTexture1f* pAlphaTexture = new ImageTexture1f(pNewAlphaImage, width, height);
-						pNewMat->setAlphaManualTexture(pAlphaTexture);
-					}
+						ImageColour3f* pNewColourImage = new ImageColour3f(width, height);
+						Image1f* pNewAlphaImage = NULL;
+						if (haveAlpha)
+						{
+							pNewAlphaImage = new Image1f(width, height);
+						}
 
+						for (unsigned int y = 0; y < height; y++)
+						{
+							for (unsigned int x = 0; x < width; x++)
+							{
+								float red = *pRawValues++;
+								float green = *pRawValues++;
+								float blue = *pRawValues++;
+
+								if (haveAlpha)
+								{
+									float alpha = *pRawValues++;
+
+									pNewAlphaImage->floatAt(x, y) = alpha;
+								}
+
+								Colour3f& imagePixel = pNewColourImage->colourAt(x, y);
+
+								imagePixel.r = red;
+								imagePixel.g = green;
+								imagePixel.b = blue;
+							}
+						}
+
+						if (pNewColourImage)
+						{
+							ImageTexture3f* pImageTexture = new ImageTexture3f(pNewColourImage, width, height);
+							pNewMat->setDiffuseColourManualTexture(pImageTexture);
+						}
+
+						if (haveAlpha && pNewAlphaImage)
+						{
+							ImageTexture1f* pAlphaTexture = new ImageTexture1f(pNewAlphaImage, width, height);
+							pNewMat->setAlphaManualTexture(pAlphaTexture);
+						}
+					}
 				}
 				else
 				{
@@ -284,96 +394,6 @@ void ImagineRenderIop::buildScene()
 
 			Material* pMat = static_cast<Material*>(pNewMat);
 
-			StandardGeometryInstance* pNewGeoInstance = new StandardGeometryInstance();
-
-			std::vector<Point>& points = pNewGeoInstance->getPoints();
-
-			const PointList* geomPoints = object.point_list();
-			unsigned int numPoints = geomPoints->size();
-
-			for (unsigned int pointIndex = 0; pointIndex < numPoints; pointIndex++)
-			{
-				const Vector3& localPoint = (*geomPoints)[pointIndex];
-				points.push_back(Point(localPoint.x, localPoint.y, localPoint.z));
-			}
-
-			// check we've got valid UVs
-			if (haveUVs)
-			{
-				int uvGroupType = pUVs->group;
-				unsigned int numUVs = pUVs->attribute->size();
-
-				std::vector<UV>& uvs = pNewGeoInstance->getUVs();
-
-				for (unsigned int uvIndex = 0; uvIndex < numUVs; uvIndex++)
-				{
-					DD::Image::Vector4& sourceUV = pUVs->attribute->vector4(uvIndex);
-					UV newUV(sourceUV.x, sourceUV.y);
-
-					uvs.push_back(newUV);
-				}
-			}
-
-			unsigned int numFaces = object.primitives();
-
-			std::vector<uint32_t>& aPolyOffsets = pNewGeoInstance->getPolygonOffsets();
-			aPolyOffsets.reserve(numFaces);
-
-			std::vector<uint32_t>& aPolyIndices = pNewGeoInstance->getPolygonIndices();
-
-			unsigned int polyOffsetLast = 0;
-
-			for (unsigned int faceIndex = 0; faceIndex < numFaces; faceIndex++)
-			{
-				const DD::Image::Primitive* prim = object.primitive(faceIndex);
-				unsigned int numVertices = prim->vertices();
-
-				unsigned int numSubFaces = prim->faces();
-				if (numSubFaces == 1)
-				{
-					aPolyOffsets.push_back(numVertices + polyOffsetLast);
-
-					for (unsigned int vertexIndex = 0; vertexIndex < numVertices; vertexIndex++)
-					{
-						unsigned int thisVertexIndex = prim->vertex(vertexIndex);
-						aPolyIndices.push_back(thisVertexIndex);
-					}
-
-					polyOffsetLast += numVertices;
-				}
-				else
-				{
-					for (unsigned int subFace = 0; subFace < numSubFaces; subFace++)
-					{
-						unsigned int numSubFaceVertices = prim->face_vertices(subFace);
-						unsigned int* pSubFaceVertices = new unsigned int[numSubFaceVertices];
-						prim->get_face_vertices(subFace, pSubFaceVertices);
-
-						aPolyOffsets.push_back(numSubFaceVertices + polyOffsetLast);
-
-						for (unsigned int vertexIndex = 0; vertexIndex < numSubFaceVertices; vertexIndex++)
-						{
-							unsigned int thisVertexIndex = pSubFaceVertices[numSubFaceVertices - 1 - vertexIndex];
-
-							aPolyIndices.push_back(thisVertexIndex);
-						}
-
-						polyOffsetLast += numSubFaceVertices;
-
-						if (pSubFaceVertices)
-							delete pSubFaceVertices;
-					}
-				}
-			}
-
-			if (haveUVs)
-			{
-				// for the moment, we can cheat here and pass in the point indices as UV indices
-				// which works for simple shapes, but obviously need to be changed at some point...
-				pNewGeoInstance->setUVIndices(aPolyIndices);
-				pNewGeoInstance->setHasPerVertexUVs(true);
-			}
-
 			Mesh* pMesh = new Mesh();
 
 			::Matrix4 objectTransform;
@@ -381,7 +401,7 @@ void ImagineRenderIop::buildScene()
 			{
 				for (unsigned int j = 0; j < 4; j++)
 				{
-					objectTransform.at(i, j) = object.matrix[j][i];
+					objectTransform.at(i, j) = srcGeoObject.matrix[j][i];
 				}
 			}
 
