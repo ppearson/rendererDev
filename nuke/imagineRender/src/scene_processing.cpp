@@ -28,6 +28,8 @@ using namespace DD::Image;
 
 void ImagineRenderIop::buildScene()
 {
+	m_lightCount = 0;
+
 	Op* pInput0 = Op::input(0);
 	Op* pInput1 = Op::input(1);
 
@@ -53,16 +55,6 @@ void ImagineRenderIop::buildScene()
 		Camera* pImagineCamera = new Camera();
 		pImagineCamera->transform().setCachedTransform(transform);
 
-		float focalLength = pCamera->focal_length();
-		float horizAperture = pCamera->film_width();
-
-		// work out the actual FOV (assuming perspective for the moment)
-
-		float fov = 2.0f * std::atan((horizAperture / 2.0f) / focalLength);
-		fov = ::degreesf(fov);
-
-		pImagineCamera->setFOV(fov);
-
 		if (m_projectionType == eSpherical)
 		{
 			pImagineCamera->setProjectionType(Camera::eSpherical);
@@ -70,12 +62,27 @@ void ImagineRenderIop::buildScene()
 		else if (m_projectionType == eFisheye)
 		{
 			pImagineCamera->setProjectionType(Camera::eFisheye);
+
+			pImagineCamera->setFOV(180.0f);
+		}
+		else if (m_projectionType == ePerspective)
+		{
+			float focalLength = pCamera->focal_length();
+			float horizAperture = pCamera->film_width();
+
+			// work out the actual FOV (assuming perspective for the moment)
+			float fov = 2.0f * std::atan((horizAperture / 2.0f) / focalLength);
+			fov = ::degreesf(fov);
+
+			pImagineCamera->setFOV(fov);
 		}
 
 		m_scene.setDefaultCamera(pImagineCamera);
 	}
 
+	m_scene.clearRenderLights(); // shouldn't need this one...
 	m_scene.freeLights();
+
 	DD::Image::Hash geometryHash = -1;
 
 	if (dynamic_cast<GeoOp*>(pInput1))
@@ -101,10 +108,11 @@ void ImagineRenderIop::buildScene()
 	if (geometryHash != m_geometryHash)
 	{
 		// the scene's changed, so update the geo
-		// TODO: this doesn't work, and doesn't handle textures anyway, so we need a more fine-grained way of doing this
+		// TODO: this doesn't work, and doesn't handle just textures changing anyway, so we need a more fine-grained way of doing this
 	}
 
 	// for the moment, just rebuild everything again...
+	m_scene.freeLights();
 	m_scene.freeGeometry();
 
 	if (dynamic_cast<GeoOp*>(pInput1))
@@ -148,6 +156,8 @@ void ImagineRenderIop::buildScene()
 			pNewLight->setIntensity(intensity / 4);
 
 			m_scene.addObject(pNewLight, false, false);
+
+			m_lightCount ++;
 		}
 
 		DD::Image::Scene scene2;
@@ -169,15 +179,6 @@ void ImagineRenderIop::buildScene()
 
 			std::vector<Point>& points = pNewGeoInstance->getPoints();
 
-//			const PointList* geomPoints = srcGeoObject.point_list();
-//			unsigned int numPoints = geomPoints->size();
-/*
-			for (unsigned int pointIndex = 0; pointIndex < numPoints; pointIndex++)
-			{
-				const Vector3& localPoint = (*geomPoints)[pointIndex];
-				points.push_back(Point(localPoint.x, localPoint.y, localPoint.z));
-			}
-*/
 			bool haveUVs = false;
 
 			const AttribContext* pUVs = srcGeoObject.get_attribcontext("uv");
@@ -185,30 +186,14 @@ void ImagineRenderIop::buildScene()
 			if (pUVs && pUVs->attribute && pUVs->attribute->size())
 				haveUVs = true;
 
-			// check we've got valid UVs
-			if (haveUVs)
-			{
-				int uvGroupType = pUVs->group;
-				unsigned int numUVs = pUVs->attribute->size();
-
-				std::vector<UV>& uvs = pNewGeoInstance->getUVs();
-
-				for (unsigned int uvIndex = 0; uvIndex < numUVs; uvIndex++)
-				{
-					DD::Image::Vector4& sourceUV = pUVs->attribute->vector4(uvIndex);
-					UV newUV(sourceUV.x, sourceUV.y);
-
-					uvs.push_back(newUV);
-				}
-			}
-
 			unsigned int numPrims = srcGeoObject.primitives();
 
 			std::vector<uint32_t>& aPolyOffsets = pNewGeoInstance->getPolygonOffsets();
-
 			std::vector<uint32_t>& aPolyIndices = pNewGeoInstance->getPolygonIndices();
 
-			std::vector<uint32_t> aUVIndices;
+			std::vector<UV>& uvs = pNewGeoInstance->getUVs();
+
+			unsigned int nukeAttrIndices[6] = { 0, 0, 0, 0, 0, 0 };
 
 			unsigned int polyOffsetLast = 0;
 
@@ -221,25 +206,30 @@ void ImagineRenderIop::buildScene()
 				for (unsigned int faceIndex = 0; faceIndex < numFaces; faceIndex++)
 				{
 					unsigned int numFaceVertices = prim->face_vertices(faceIndex);
-					// TODO: hoist this out of these loops
+					// TODO: hoist this allocation out of these loops
 					unsigned int* pFaceVertices = new unsigned int[numFaceVertices];
 					prim->get_face_vertices(faceIndex, pFaceVertices);
 
 					for (unsigned int vertexIndex = 0; vertexIndex < numFaceVertices; vertexIndex++)
 					{
-//						unsigned int thisVertexIndex = pFaceVertices[numFaceVertices - 1 - vertexIndex];
 						unsigned int thisVertexIndex = pFaceVertices[vertexIndex];
 
 						unsigned int pointIndex = prim->vertex(thisVertexIndex);
+
+						unsigned int uvIndex = prim->vertex_offset() + thisVertexIndex;
+
+						nukeAttrIndices[Group_Points] = pointIndex;
+						nukeAttrIndices[Group_Vertices] = uvIndex;
 
 						const Vector3& localPoint = srcGeoObject.point_array()[pointIndex];
 						points.push_back(Point(localPoint.x, localPoint.y, localPoint.z));
 
 						aPolyIndices.push_back(vertexIndexCount++);
 
-						// ???!
-						unsigned int uvIndex = prim->vertex_offset() + thisVertexIndex;
-						aUVIndices.push_back(uvIndex);
+						// looks like we have to do the lookup this way, which means we can't index them
+						// to de-duplicate them, but hey...
+						const Vector4& uv = pUVs->vector4(nukeAttrIndices);
+						uvs.push_back(UV(uv.x, uv.y));
 					}
 
 					aPolyOffsets.push_back(numFaceVertices + polyOffsetLast);
@@ -252,9 +242,6 @@ void ImagineRenderIop::buildScene()
 
 			if (haveUVs)
 			{
-				// for the moment, we can cheat here and pass in the point indices as UV indices
-				// which works for simple shapes, but obviously need to be changed at some point...
-				pNewGeoInstance->setUVIndices(aUVIndices);
 				pNewGeoInstance->setHasPerVertexUVs(true);
 			}
 
@@ -275,12 +262,6 @@ void ImagineRenderIop::buildScene()
 				float blue = pNukeMaterial->at(0, 0, Chan_Blue);
 				float alpha = pNukeMaterial->at(0, 0, Chan_Alpha);
 
-				// this obviously doesn't work reliably with realistic textures and alpha
-/*				if (red == 0.0f && green == 0.0f && blue == 0.0f)
-				{
-					haveTexture = false;
-				}
-*/
 				if (haveUVs && haveTexture)
 				{
 					unsigned int width = pNukeMaterial->info().w();

@@ -48,7 +48,7 @@ const char* const ANTI_ALIASING_TYPE[] =
 using namespace DD::Image;
 
 ImagineRenderIop::ImagineRenderIop(Node* node) : Iop(node), m_pOutputImage(NULL), m_pRaytracer(NULL), m_firstEngine(true),
-	m_ambientOcclusion(false), m_antiAliasing(1), m_globalIlluminationSamples(64)
+	m_lightCount(0), m_ambientOcclusion(false), m_antiAliasing(1), m_globalIlluminationSamples(64)
 {
 	m_cameraHash = 0;
 	m_lightsHash = 0;
@@ -134,7 +134,12 @@ void ImagineRenderIop::_validate(bool for_real)
 
 	m_pRaytracer = new Raytracer(m_scene, m_pOutputImage, m_renderSettings, false, threads);
 	m_pRaytracer->setHost(this);
-	m_pRaytracer->setAmbientColour(Colour3f(1.0f));
+
+	if (m_lightCount == 0)
+	{
+		m_pRaytracer->setAmbientColour(Colour3f(1.0f));
+	}
+
 	m_pRaytracer->setExtraChannels(0);
 
 	// for the moment we can map this directly with a shift (i.e. enum 0 == 1 sample per pixel squared)
@@ -175,7 +180,7 @@ void ImagineRenderIop::engine(int y, int x, int r, ChannelMask channels, DD::Ima
 			m_pRaytracer->renderScene(1.0f, NULL);
 
 			m_pOutputImage->normaliseProgressive();
-			m_pOutputImage->applyExposure(1.3f);
+			m_pOutputImage->applyExposure(1.0f);
 
 			m_firstEngine = false;
 		}

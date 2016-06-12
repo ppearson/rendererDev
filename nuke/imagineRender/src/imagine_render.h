@@ -77,6 +77,8 @@ protected:
 	DD::Image::Lock		m_lock;
 	bool				m_firstEngine;
 
+	unsigned int		m_lightCount;
+
 	////
 
 	// knob settings
