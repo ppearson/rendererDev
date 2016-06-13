@@ -282,7 +282,7 @@ void ImagineRenderIop::buildScene()
 
 					DD::Image::Box bbox(0, 0, width, height);
 
-					DD::Image::ImagePlane newImagePlane(bbox, false, haveAlpha ? Mask_RGBA : Mask_RGB, haveAlpha ? 4 : 3);
+					DD::Image::ImagePlane newImagePlane(bbox, true, haveAlpha ? Mask_RGBA : Mask_RGB, haveAlpha ? 4 : 3);
 					// make a texture
 					pNukeMaterial->fetchPlane(newImagePlane);
 					const float* pRawValues = newImagePlane.readable();
