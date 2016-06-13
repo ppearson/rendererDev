@@ -227,17 +227,20 @@ void ImagineRenderIop::buildScene()
 
 						aPolyIndices.push_back(vertexIndexCount++);
 
-						// looks like we have to do the lookup this way, which means we can't index them
-						// to de-duplicate them, but hey...
-						const Vector4& uv = pUVs->vector4(nukeAttrIndices);
-
-						UV newUV(uv.x, uv.y);
-						// for projections (UVProject) we need to scale by the .w value
-						if (uv.w != 0.0f)
+						if (haveUVs)
 						{
-							newUV /= uv.w;
+							// looks like we have to do the lookup this way, which means we can't index them
+							// to de-duplicate them, but hey...
+							const Vector4& uv = pUVs->vector4(nukeAttrIndices);
+
+							UV newUV(uv.x, uv.y);
+							// for projections (UVProject) we need to scale by the .w value
+							if (uv.w != 0.0f)
+							{
+								newUV /= uv.w;
+							}
+							uvs.push_back(newUV);
 						}
-						uvs.push_back(newUV);
 					}
 
 					aPolyOffsets.push_back(numFaceVertices + polyOffsetLast);
@@ -257,6 +260,8 @@ void ImagineRenderIop::buildScene()
 			{
 				// create a new material type which reads from an Iop and brute-force reads
 				// the full texture ahead of time...
+
+				// TODO: cache the IOP and call sample() instead on-the-fly?
 
 				Iop* pNukeMaterial = srcGeoObject.material;
 
