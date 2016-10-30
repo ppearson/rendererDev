@@ -1,8 +1,11 @@
 #include "instancer_op.h"
 
 #include <sstream>
+#include <cmath>
 
 #include <stdio.h>
+
+static std::vector<Vec3>	aTranslates;
 
 void InstancerOp::setup(Foundry::Katana::GeolibSetupInterface& interface)
 {
@@ -33,8 +36,6 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		return;
 	}
 
-
-
 	FnAttribute::GroupAttribute aGroupAttr = interface.getOpArg("a");
 	if (aGroupAttr.isValid())
 	{
@@ -44,7 +45,6 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		if (sourceLocationAttr.isValid())
 		{
 			sourceLocation = sourceLocationAttr.getValue("", false);
-			fprintf(stderr, "Location: %s\n", sourceLocation.c_str());
 		}
 
 		FnAttribute::IntAttribute numInstancesAttr = aGroupAttr.getChildByName("numInstances");
@@ -55,6 +55,16 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		{
 			return;
 		}
+		
+		float areaSpread = 20.0f;
+		FnAttribute::FloatAttribute areaSpreadAttr = aGroupAttr.getChildByName("areaSpread");
+		if (areaSpreadAttr.isValid())
+		{
+			areaSpread = areaSpreadAttr.getValue(20.0f, false);
+		}
+		
+		// we're dangerously assuming that this will be run first...
+		create2DGrid(numInstances, areaSpread, aTranslates);
 
 		bool groupInstances = groupInstancesAttr.getValue(0, false);
 		if (groupInstances)
@@ -79,6 +89,7 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 				childArgsBuilder.set("group.index", FnAttribute::IntAttribute(i));
 				childArgsBuilder.set("group.indexStart", FnAttribute::IntAttribute(indexStartCount));
 				childArgsBuilder.set("group.size", FnAttribute::IntAttribute(thisGroupSize));
+				childArgsBuilder.set("group.sourceLoc", FnAttribute::StringAttribute(sourceLocation));
 				interface.createChild(ss.str(), "", childArgsBuilder.build());
 
 				remainingInstances -= thisGroupSize;
@@ -94,6 +105,7 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 
 				FnAttribute::GroupBuilder childArgsBuilder;
 				childArgsBuilder.set("leaf.index", FnAttribute::IntAttribute(i));
+				childArgsBuilder.set("leaf.sourceLoc", FnAttribute::StringAttribute(sourceLocation));
 				interface.createChild(ss.str(), "", childArgsBuilder.build());
 			}
 		}
@@ -108,6 +120,9 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		int indexStart = indexStartAttr.getValue(0, false);
 		FnAttribute::IntAttribute sizeAttr = group.getChildByName("size");
 		int size = sizeAttr.getValue(0 , false);
+		
+		FnAttribute::StringAttribute sourceLocationAttr = group.getChildByName("sourceLoc");
+				
 		interface.setAttr("type", FnAttribute::StringAttribute("group"));
 
 		for (int i = indexStart; i < indexStart + size; i++)
@@ -117,6 +132,7 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 
 			FnAttribute::GroupBuilder childArgsBuilder;
 			childArgsBuilder.set("leaf.index", FnAttribute::IntAttribute(i));
+			childArgsBuilder.set("leaf.sourceLoc", sourceLocationAttr);
 			interface.createChild(ss.str(), "", childArgsBuilder.build());
 		}
 
@@ -130,12 +146,83 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		int index = indexAttr.getValue(0 , false);
 
 		FnAttribute::GroupBuilder geoGb;
-//		geoGb.set("instanceSource", sourceLocationAttr);
-
+		
+		std::string sourceLocation;
+		FnAttribute::StringAttribute sourceLocationAttr = leaf.getChildByName("sourceLoc");
+		if (sourceLocationAttr.isValid())
+		{
+			sourceLocation = sourceLocationAttr.getValue("", false);
+			
+			geoGb.set("instanceSource", sourceLocationAttr);
+		}
+		
 		interface.setAttr("type", FnAttribute::StringAttribute("instance"));
-//		interface.setAttr("geometry", geoGb.build());
+		interface.setAttr("geometry", geoGb.build());
+		
+		FnAttribute::GroupBuilder xformGb;
+		const Vec3& trans = aTranslates[index];
+		double transValues[3] = { trans.x, trans.y, trans.z };
+		xformGb.set("translate", FnAttribute::DoubleAttribute(transValues, 3, 3));
+		
+		interface.setAttr("xform", xformGb.build());
 
 		interface.stopChildTraversal();
+	}
+}
+
+void InstancerOp::create2DGrid(int numItems, float areaSpread, std::vector<Vec3>& aItemPositions)
+{
+	// round up to the next square number, so we get a good even distribution for both X and Y
+	int edgeCount = (int)(std::sqrt((float)numItems));
+	if (edgeCount * edgeCount < numItems)
+		edgeCount += 1;
+
+	int fullItemCount = edgeCount * edgeCount;
+
+	int extra = fullItemCount - numItems;
+
+	aItemPositions.reserve(numItems);	
+	
+	float edgeDelta = 1.0f / (float)edgeCount;
+	
+	if (extra > 0)
+	{
+		// we need to skip certain items
+		
+		int skipStride = fullItemCount / extra;
+		
+		int count = 0;
+		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
+		{
+			float xPos = float(xInd);
+			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
+			{
+				if (extra > 0 && ++count >= skipStride)
+				{
+					count = 0;
+					continue;
+				}
+				
+				float xSample = (xPos * edgeDelta) - 0.5f;
+				float ySample = (float(yInd) * edgeDelta) - 0.5f;
+	
+				aItemPositions.push_back(Vec3(xSample * areaSpread, 0.0f, ySample * areaSpread));
+			}
+		}
+	}
+	else
+	{
+		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
+		{
+			float xPos = float(xInd);
+			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
+			{
+				float xSample = (xPos * edgeDelta) - 0.5f;
+				float ySample = (float(yInd) * edgeDelta) - 0.5f;
+	
+				aItemPositions.push_back(Vec3(xSample * areaSpread, 0.0f, ySample * areaSpread));
+			}
+		}
 	}
 }
 

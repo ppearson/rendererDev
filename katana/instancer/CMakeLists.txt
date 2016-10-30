@@ -26,7 +26,7 @@ ENDIF(${MODERN_GCC} MATCHES "1")
 SET(CMAKE_CXX_FLAGS_DEBUG "-g -mfpmath=sse -fPIC -ffast-math -msse -msse2 -msse3 -mssse3 -msse4")
 SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -mfpmath=sse -fPIC -ffast-math -msse -msse2 -msse3 -mssse3 -msse4")
 
-SET(KATANA_PLUGIN_API_PATH "/opt/katana20v5/plugin_apis/")
+SET(KATANA_PLUGIN_API_PATH "/opt/katana_2.5.3/plugin_apis/")
 
 FILE(GLOB_RECURSE katanaAPI_SOURCES_ORIGINAL "${KATANA_PLUGIN_API_PATH}/src/*.cpp")
 
