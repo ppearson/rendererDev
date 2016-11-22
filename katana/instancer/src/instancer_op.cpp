@@ -1,3 +1,5 @@
+// Created by Peter Pearson, 2016.
+
 #include "instancer_op.h"
 
 #include <sstream>
@@ -46,6 +48,8 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		{
 			sourceLocation = sourceLocationAttr.getValue("", false);
 		}
+		
+		FnAttribute::IntAttribute instanceTypeAttr = aGroupAttr.getChildByName("instanceType");
 
 		FnAttribute::IntAttribute numInstancesAttr = aGroupAttr.getChildByName("numInstances");
 		FnAttribute::IntAttribute groupInstancesAttr = aGroupAttr.getChildByName("groupInstances");
@@ -54,6 +58,13 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		if (numInstances == 0)
 		{
 			return;
+		}
+		
+		bool instanceArray = false;
+		FnAttribute::IntAttribute instanceArrayAttr = aGroupAttr.getChildByName("instanceArray");
+		if (instanceArrayAttr.isValid())
+		{
+			instanceArray = instanceArrayAttr.getValue(0, false);
 		}
 		
 		float areaSpread = 20.0f;
@@ -65,51 +76,91 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		
 		// we're dangerously assuming that this will be run first...
 		create2DGrid(numInstances, areaSpread, aTranslates);
-
-		bool groupInstances = groupInstancesAttr.getValue(0, false);
-		if (groupInstances)
+		
+		if (!instanceArray)
 		{
-			FnAttribute::IntAttribute groupSizeAttr = aGroupAttr.getChildByName("groupSize");
-			int groupSize = groupSizeAttr.getValue(0, false);
-
-			int groupsNeeded = numInstances / groupSize;
-			groupsNeeded += (int)(numInstances % groupSize > 0);
-
-			int remainingInstances = numInstances;
-			int indexStartCount = 0;
-
-			for (int i = 0; i < groupsNeeded; i++)
+			bool groupInstances = groupInstancesAttr.getValue(0, false);
+			if (groupInstances)
 			{
-				std::ostringstream ss;
-				ss << "group_" << i;
-
-				int thisGroupSize = (remainingInstances >= groupSize) ? groupSize : remainingInstances;
-
-				FnAttribute::GroupBuilder childArgsBuilder;
-				childArgsBuilder.set("group.index", FnAttribute::IntAttribute(i));
-				childArgsBuilder.set("group.indexStart", FnAttribute::IntAttribute(indexStartCount));
-				childArgsBuilder.set("group.size", FnAttribute::IntAttribute(thisGroupSize));
-				childArgsBuilder.set("group.sourceLoc", FnAttribute::StringAttribute(sourceLocation));
-				interface.createChild(ss.str(), "", childArgsBuilder.build());
-
-				remainingInstances -= thisGroupSize;
-				indexStartCount += thisGroupSize;
+				FnAttribute::IntAttribute groupSizeAttr = aGroupAttr.getChildByName("groupSize");
+				int groupSize = groupSizeAttr.getValue(0, false);
+	
+				int groupsNeeded = numInstances / groupSize;
+				groupsNeeded += (int)(numInstances % groupSize > 0);
+	
+				int remainingInstances = numInstances;
+				int indexStartCount = 0;
+	
+				for (int i = 0; i < groupsNeeded; i++)
+				{
+					std::ostringstream ss;
+					ss << "group_" << i;
+	
+					int thisGroupSize = (remainingInstances >= groupSize) ? groupSize : remainingInstances;
+	
+					FnAttribute::GroupBuilder childArgsBuilder;
+					childArgsBuilder.set("group.index", FnAttribute::IntAttribute(i));
+					childArgsBuilder.set("group.indexStart", FnAttribute::IntAttribute(indexStartCount));
+					childArgsBuilder.set("group.size", FnAttribute::IntAttribute(thisGroupSize));
+					childArgsBuilder.set("group.sourceLoc", FnAttribute::StringAttribute(sourceLocation));
+					interface.createChild(ss.str(), "", childArgsBuilder.build());
+	
+					remainingInstances -= thisGroupSize;
+					indexStartCount += thisGroupSize;
+				}
+			}
+			else
+			{
+				for (int i = 0; i < numInstances; i++)
+				{
+					std::ostringstream ss;
+					ss << "instance_" << i;
+	
+					FnAttribute::GroupBuilder childArgsBuilder;
+					childArgsBuilder.set("leaf.index", FnAttribute::IntAttribute(i));
+					childArgsBuilder.set("leaf.sourceLoc", FnAttribute::StringAttribute(sourceLocation));
+					interface.createChild(ss.str(), "", childArgsBuilder.build());
+				}
 			}
 		}
 		else
 		{
+			// just create a single instance array location
+				
+			FnAttribute::GroupBuilder geoGb;
+			geoGb.set("instanceSource", FnAttribute::StringAttribute(sourceLocation));
+			
+			// we can use FloatAttr for instance array types
+			std::vector<float> aMatrixValues(numInstances * 16, 0.0f);
+			
 			for (int i = 0; i < numInstances; i++)
 			{
-				std::ostringstream ss;
-				ss << "instance_" << i;
-
-				FnAttribute::GroupBuilder childArgsBuilder;
-				childArgsBuilder.set("leaf.index", FnAttribute::IntAttribute(i));
-				childArgsBuilder.set("leaf.sourceLoc", FnAttribute::StringAttribute(sourceLocation));
-				interface.createChild(ss.str(), "", childArgsBuilder.build());
+				const Vec3& trans = aTranslates[i];
+				
+				// set matrix values
+				
+				unsigned int matrixStartOffset = i * 16;
+				
+				aMatrixValues[matrixStartOffset] = 1.0f;
+				aMatrixValues[matrixStartOffset + 5] = 1.0f;
+				aMatrixValues[matrixStartOffset + 10] = 1.0f;
+				
+				aMatrixValues[matrixStartOffset + 12] = trans.x;
+				aMatrixValues[matrixStartOffset + 13] = trans.y;
+				aMatrixValues[matrixStartOffset + 14] = trans.z;
+				
+				aMatrixValues[matrixStartOffset + 15] = 1.0f;
 			}
+			
+			geoGb.set("instanceMatrix", FnAttribute::FloatAttribute(aMatrixValues.data(), numInstances * 16, 16));
+			
+			interface.setAttr("geometry", geoGb.build());
+			
+			interface.setAttr("type", FnAttribute::StringAttribute("instance array"));			
+	
+			interface.stopChildTraversal();
 		}
-
+		
 		return;
 	}
 
@@ -146,13 +197,10 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		int index = indexAttr.getValue(0 , false);
 
 		FnAttribute::GroupBuilder geoGb;
-		
-		std::string sourceLocation;
+
 		FnAttribute::StringAttribute sourceLocationAttr = leaf.getChildByName("sourceLoc");
 		if (sourceLocationAttr.isValid())
-		{
-			sourceLocation = sourceLocationAttr.getValue("", false);
-			
+		{			
 			geoGb.set("instanceSource", sourceLocationAttr);
 		}
 		
