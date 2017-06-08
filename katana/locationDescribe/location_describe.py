@@ -30,14 +30,30 @@ def registerLocationDescribe():
             attributeItems = parseDescription(descriptionString)
             
             for attribItem in attributeItems:
-                if attribItem[0] == "int":
-                    staticSCB.setAttrAtLocation(locationPath, attribItem[1], FnAttribute.IntAttribute(int(attribItem[2])))
-                elif attribItem[0] == "string":
-                    staticSCB.setAttrAtLocation(locationPath, attribItem[1], FnAttribute.StringAttribute(attribItem[2]))
-                elif attribItem[0] == "float":
-                    staticSCB.setAttrAtLocation(locationPath, attribItem[1], FnAttribute.FloatAttribute(float(attribItem[2])))
-                elif attribItem[0] == "double":
-                    staticSCB.setAttrAtLocation(locationPath, attribItem[1], FnAttribute.DoubleAttribute(float(attribItem[2])))
+                if attribItem[0] == 1:
+                    # single item
+                    if attribItem[1] == "int":
+                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.IntAttribute(int(attribItem[3])))
+                    elif attribItem[1] == "string":
+                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.StringAttribute(attribItem[3]))
+                    elif attribItem[1] == "float":
+                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.FloatAttribute(float(attribItem[3])))
+                    elif attribItem[1] == "double":
+                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.DoubleAttribute(float(attribItem[3])))
+                elif attribItem[0] == 2:
+                    # array item
+                    itemDataType = attribItem[1]
+                    
+                    if itemDataType == "int":
+                        intArray = [int(stringItem) for stringItem in attribItem[3]]
+                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.IntAttribute(intArray, len(intArray)))
+                    elif itemDataType == "float" or itemDataType == "double":
+                        floatArray = [float(stringItem.translate(None, 'f')) for stringItem in attribItem[3]]
+                        # print floatArray
+                        if itemDataType == "float":
+                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.FloatAttribute(floatArray, len(floatArray)))
+                        elif itemDataType == "double":
+                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.DoubleAttribute(floatArray, len(floatArray)))
                     
         interface.appendOp('StaticSceneCreate', staticSCB.build())
 
@@ -76,12 +92,16 @@ def parseDescription(descriptionString):
         if not len(line):
             continue
         
-        # up to first space is the type
+        # up to first space is the data type of the attribute to create
         typeSep = line.find(" ")
         if typeSep == -1:
             continue
         
-        attributeType = line[:typeSep]
+        attributeDataType = line[:typeSep]
+        
+        # indicator of whether it's a single attribute or an array attribute.
+        # 1 if single attribute, 2 if an array
+        attributeItemType = 2 if attributeDataType.find("[") != -1 else 1
         
         # find end of attribute name
         attributeNameEndSep = line.find(" = ")
@@ -94,7 +114,26 @@ def parseDescription(descriptionString):
         attributeValue = line[attributeNameEndSep + 2:]
         attributeValue = attributeValue.strip()
         
-        attributes.append((attributeType, attributeName, attributeValue))
+        if attributeItemType == 1:
+            # just a single value for the attribute
+            attributes.append((attributeItemType, attributeDataType, attributeName, attributeValue))
+        elif attributeItemType == 2:
+            # an array type for the attribute
+            if attributeValue[0] != "{" or attributeValue[-1:] != "}":
+                print "Invalid array value string for attribute: %s" % (attributeName)
+                continue
+            
+            # strip the braces off
+            tempValueString = attributeValue[1:-1]
+            tempValueString = tempValueString.strip()
+            
+            tempValueString = tempValueString.replace(", ", ",")
+            tempArrayItems = tempValueString.split(",")
+            
+            baseTypeSep = attributeDataType.find("[")
+            baseDataType = attributeDataType[:baseTypeSep]
+            
+            attributes.append((attributeItemType, baseDataType, attributeName, tempArrayItems))
     
     return attributes
 
