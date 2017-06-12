@@ -84,12 +84,12 @@ def parseDescription(descriptionString):
         # strip whitespace at the ends
         line = line.strip()
         
-        # skip commented lines
-        if line[0] == "#" or line[0] == "/":
-            continue
-        
         # and blank lines
         if not len(line):
+            continue
+        
+        # skip commented lines
+        if line[0] == "#" or line[0] == "/":
             continue
         
         # up to first space is the data type of the attribute to create
