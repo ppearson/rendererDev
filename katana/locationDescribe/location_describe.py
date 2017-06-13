@@ -46,14 +46,14 @@ def registerLocationDescribe():
                     
                     if itemDataType == "int":
                         intArray = [int(stringItem) for stringItem in attribItem[3]]
-                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.IntAttribute(intArray, len(intArray)))
+                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.IntAttribute(intArray, attribItem[4]))
                     elif itemDataType == "float" or itemDataType == "double":
                         floatArray = [float(stringItem.translate(None, 'f')) for stringItem in attribItem[3]]
                         # print floatArray
                         if itemDataType == "float":
-                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.FloatAttribute(floatArray, len(floatArray)))
+                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.FloatAttribute(floatArray, attribItem[4]))
                         elif itemDataType == "double":
-                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.DoubleAttribute(floatArray, len(floatArray)))
+                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.DoubleAttribute(floatArray, attribItem[4]))
                     
         interface.appendOp('StaticSceneCreate', staticSCB.build())
 
@@ -133,7 +133,13 @@ def parseDescription(descriptionString):
             baseTypeSep = attributeDataType.find("[")
             baseDataType = attributeDataType[:baseTypeSep]
             
-            attributes.append((attributeItemType, baseDataType, attributeName, tempArrayItems))
+            arrayEndSep = attributeDataType.find("]")
+            tupleSize = 1
+            if arrayEndSep > baseTypeSep + 1:
+                tupleSizeString = attributeDataType[baseTypeSep + 1:arrayEndSep]
+                tupleSize = int(tupleSizeString)
+            
+            attributes.append((attributeItemType, baseDataType, attributeName, tempArrayItems, tupleSize))
     
     return attributes
 
