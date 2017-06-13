@@ -20,6 +20,7 @@ def registerLocationDescribe():
             # do the actual work creating location and attributes
             locationPath = locationParam.getValue(0)
             
+            modeParam = node.getParameter('mode')
             descriptionParam = node.getParameter('description')
             typeParam = node.getParameter('type')
             
@@ -62,10 +63,12 @@ def registerLocationDescribe():
     # build params
     gb = FnAttribute.GroupBuilder()
     gb.set('location', FnAttribute.StringAttribute('/root/world/geo/location1'))
+    gb.set('mode', FnAttribute.StringAttribute('create'))
     gb.set('type', FnAttribute.StringAttribute('sphere'))
     gb.set('description', FnAttribute.StringAttribute('double geometry.radius = 1.0;'))
     
     nodeTypeBuilder.setParametersTemplateAttr(gb.build())
+    nodeTypeBuilder.setHintsForParameter('mode', {'widget':'popup', 'options':'create|edit'})
     nodeTypeBuilder.setHintsForParameter('description', {'widget':'scriptEditor'})
     
     nodeTypeBuilder.setBuildOpChainFnc(buildLocationDescribeOpChain)
