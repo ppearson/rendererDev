@@ -4,28 +4,58 @@ from Katana import Nodes3DAPI
 from Katana import FnAttribute
 from Katana import FnGeolibServices
 
+class InternalBuilderSSC:
+    def __init__(self, locationPath, locationType):
+        self.locationPath = locationPath
+        self.locationType = locationType
+        self.staticSCB = FnGeolibServices.OpArgsBuilders.StaticSceneCreate()
+        self.staticSCB.createEmptyLocation(self.locationPath)
+        self.staticSCB.setAttrAtLocation(self.locationPath, 'type', FnAttribute.StringAttribute(self.locationType))
+    def addAttribute(self, attributeName, attribute):
+        self.staticSCB.setAttrAtLocation(self.locationPath, attributeName, attribute)
+    def getOpName(self):
+        return "StaticSceneCreate"
+    def build(self):
+        return self.staticSCB.build()
+
+class InternalBuilderAS:
+    def __init__(self, locationPath, locationType):
+        self.locationPath = locationPath
+        self.locationType = locationType
+        self.attribSet = FnGeolibServices.OpArgsBuilders.AttributeSet()
+        self.attribSet.setCEL(FnAttribute.StringAttribute(self.locationPath))
+    def addAttribute(self, attributeName, attribute):
+        self.attribSet.setAttr(attributeName, attribute)
+    def getOpName(self):
+        return "AttributeSet"
+    def build(self):
+        return self.attribSet.build()
+
 def registerLocationDescribe():
     def buildLocationDescribeOpChain(node, interface):
         interface.setMinRequiredInputs(0)
         
-        staticSCB = FnGeolibServices.OpArgsBuilders.StaticSceneCreate()
-        
         locationParam = node.getParameter('location')
         if not locationParam:
             # set an error
+            staticSCB = FnGeolibServices.OpArgsBuilders.StaticSceneCreate()
             staticSCB.createEmptyLocation('/root/world/geo/')
             staticSCB.setAttrAtLocation('/root/world/', 'errorMessage',
                         FnAttribute.StringAttribute('Invalid location used for LocationDescribe'))
+            interface.appendOp('StaticSceneCreate', staticSCB.build())
         else:
             # do the actual work creating location and attributes
             locationPath = locationParam.getValue(0)
             
             modeParam = node.getParameter('mode')
+            modeParamValue = modeParam.getValue(0)
             descriptionParam = node.getParameter('description')
             typeParam = node.getParameter('type')
+            typeParamValue = typeParam.getValue(0)
             
-            staticSCB.createEmptyLocation(locationPath)
-            staticSCB.setAttrAtLocation(locationPath, 'type', FnAttribute.StringAttribute(typeParam.getValue(0)))
+            interface.setMinRequiredInputs(0 if modeParamValue == "create" else 1)
+            
+            internalBuilder = InternalBuilderSSC(locationPath, typeParamValue) if modeParamValue == "create" else InternalBuilderAS(locationPath, typeParamValue)
             
             descriptionString = descriptionParam.getValue(0)
             attributeItems = parseDescription(descriptionString)
@@ -34,29 +64,29 @@ def registerLocationDescribe():
                 if attribItem[0] == 1:
                     # single item
                     if attribItem[1] == "int":
-                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.IntAttribute(int(attribItem[3])))
+                        internalBuilder.addAttribute(attribItem[2], FnAttribute.IntAttribute(int(attribItem[3])))
                     elif attribItem[1] == "string":
-                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.StringAttribute(attribItem[3]))
+                        internalBuilder.addAttribute(attribItem[2], FnAttribute.StringAttribute(attribItem[3]))
                     elif attribItem[1] == "float":
-                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.FloatAttribute(float(attribItem[3])))
+                        internalBuilder.addAttribute(attribItem[2], FnAttribute.FloatAttribute(float(attribItem[3])))
                     elif attribItem[1] == "double":
-                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.DoubleAttribute(float(attribItem[3])))
+                        internalBuilder.addAttribute(attribItem[2], FnAttribute.DoubleAttribute(float(attribItem[3])))
                 elif attribItem[0] == 2:
                     # array item
                     itemDataType = attribItem[1]
                     
                     if itemDataType == "int":
                         intArray = [int(stringItem) for stringItem in attribItem[3]]
-                        staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.IntAttribute(intArray, attribItem[4]))
+                        internalBuilder.addAttribute(attribItem[2], FnAttribute.IntAttribute(intArray, attribItem[4]))
                     elif itemDataType == "float" or itemDataType == "double":
                         floatArray = [float(stringItem.translate(None, 'f')) for stringItem in attribItem[3]]
                         # print floatArray
                         if itemDataType == "float":
-                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.FloatAttribute(floatArray, attribItem[4]))
+                            internalBuilder.addAttribute(attribItem[2], FnAttribute.FloatAttribute(floatArray, attribItem[4]))
                         elif itemDataType == "double":
-                            staticSCB.setAttrAtLocation(locationPath, attribItem[2], FnAttribute.DoubleAttribute(floatArray, attribItem[4]))
+                            internalBuilder.addAttribute(attribItem[2], FnAttribute.DoubleAttribute(floatArray, attribItem[4]))
                     
-        interface.appendOp('StaticSceneCreate', staticSCB.build())
+            interface.appendOp(internalBuilder.getOpName(), internalBuilder.build())
 
     nodeTypeBuilder = Nodes3DAPI.NodeTypeBuilder('LocationDescribe')
     
@@ -70,6 +100,8 @@ def registerLocationDescribe():
     nodeTypeBuilder.setParametersTemplateAttr(gb.build())
     nodeTypeBuilder.setHintsForParameter('mode', {'widget':'popup', 'options':'create|edit'})
     nodeTypeBuilder.setHintsForParameter('description', {'widget':'scriptEditor'})
+    
+    nodeTypeBuilder.setInputPortNames(('in',))
     
     nodeTypeBuilder.setBuildOpChainFnc(buildLocationDescribeOpChain)
     
