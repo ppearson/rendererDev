@@ -68,9 +68,9 @@ def registerLocationDescribe():
                     elif attribItem[1] == "string":
                         internalBuilder.addAttribute(attribItem[2], FnAttribute.StringAttribute(attribItem[3]))
                     elif attribItem[1] == "float":
-                        internalBuilder.addAttribute(attribItem[2], FnAttribute.FloatAttribute(float(attribItem[3])))
+                        internalBuilder.addAttribute(attribItem[2], FnAttribute.FloatAttribute(float(attribItem[3].translate(None, 'f'))))
                     elif attribItem[1] == "double":
-                        internalBuilder.addAttribute(attribItem[2], FnAttribute.DoubleAttribute(float(attribItem[3])))
+                        internalBuilder.addAttribute(attribItem[2], FnAttribute.DoubleAttribute(float(attribItem[3].translate(None, 'f'))))
                 elif attribItem[0] == 2:
                     # array item
                     itemDataType = attribItem[1]
