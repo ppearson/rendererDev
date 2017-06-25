@@ -1,6 +1,6 @@
 /*
  vdbconv
- Copyright 2014-2016 Peter Pearson.
+ Copyright 2014-2017 Peter Pearson.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
@@ -29,13 +29,11 @@ int main(int argc, char** argv)
 
 	if (argc < 3)
 	{
-		fprintf(stderr, "incorrects args:\n");
+		fprintf(stderr, "incorrect number of program arguments:\n");
 		printHelp = true;
 	}
 
 	unsigned int argOffset = 0;
-
-
 
 	VDBConverter converter;
 
@@ -45,7 +43,6 @@ int main(int argc, char** argv)
 
 	if (!printHelp)
 	{
-
 		for (unsigned int i = 0; i < numOptionArgs; i++)
 		{
 			std::string argString = argv[i + 1];
@@ -76,6 +73,16 @@ int main(int argc, char** argv)
 					argOffset += 1;
 				}
 			}
+			else if (argName == "sizeScale" && numOptionArgs > i + 1)
+			{
+				std::string strSizeScaleValue = argv[i + 1 + 1];
+				if (!strSizeScaleValue.empty())
+				{
+					float sizeScale = atof(strSizeScaleValue.c_str());
+					converter.setSizeMultiplier(sizeScale);
+					argOffset += 1;
+				}
+			}
 			else if (argName == "seq")
 			{
 				sequence = true;
@@ -84,9 +91,24 @@ int main(int argc, char** argv)
 			{
 				converter.setUseSparseGrid(true);
 			}
+			else if (argName == "cellSize" && numOptionArgs > i + 1)
+			{
+				std::string strCellSizeValue = argv[i + 1 + 1];
+				if (!strCellSizeValue.empty())
+				{
+					unsigned int cellSize = atoi(strCellSizeValue.c_str());
+					converter.setSparseSubCellSize(cellSize);
+					argOffset += 1;
+				}
+			}
 			else if (argName == "dense")
 			{
 				converter.setUseSparseGrid(false);
+			}
+			else
+			{
+				printHelp = true;
+				fprintf(stderr, "Unknown argument supplied: %s\n", argName.c_str());
 			}
 
 			argOffset += 1;
@@ -95,10 +117,13 @@ int main(int argc, char** argv)
 
 	if (printHelp)
 	{
-		fprintf(stderr, "OpenVDB to Imagine volume converter. 0.2.\n");
+		fprintf(stderr, "OpenVDB to Imagine Voxel Volume converter, version 0.3.\n");
 		fprintf(stderr, "Usage: vdbconv [options] <source_vdb> <dest_ivv>\n");
-		fprintf(stderr, "    Options: -half\t\tsave as half format\n");
-		fprintf(stderr, "    Options: -valMul <float>\tapply value modifier\n\n");
+		fprintf(stderr, "    Options: -half\t\t\tsave as half format\n");
+		fprintf(stderr, "    Options: -sparse\t\t\tsave as a sparse grid\n");
+		fprintf(stderr, "    Options: -cellSize <int>\t\tuse this cellSize for sub sparse cells\n");
+		fprintf(stderr, "    Options: -valMul <float>\t\tapply value modifier\n");
+		fprintf(stderr, "    Options: -sizeScale <float>\t\tapply this scale to the bounds of the volume\n\n");
 		return 0;
 	}
 

@@ -1,6 +1,6 @@
 /*
  vdbconv
- Copyright 2014-2016 Peter Pearson.
+ Copyright 2014-2017 Peter Pearson.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
@@ -67,6 +67,7 @@ public:
 
 	void setSizeMultiplier(float sizeMultipler) { m_sizeMultiplier = sizeMultipler; }
 	void setValueMultiplier(float valueMultiplier) { m_valueMultiplier = valueMultiplier; }
+	void setSparseSubCellSize(unsigned int subCellSize) { m_subCellSize = subCellSize; }
 
 	void setStoreAsHalf(bool storeHalf) { m_storeAsHalf = storeHalf; }
 	void setUseSparseGrid(bool useSparse) { m_useSparseGrids = useSparse; }
@@ -84,8 +85,9 @@ protected:
 	static std::string getFrameFileName(const std::string& fileName, unsigned int frame);
 
 protected:
-	float		m_sizeMultiplier;
-	float		m_valueMultiplier;
+	float			m_sizeMultiplier;
+	float			m_valueMultiplier;
+	unsigned int	m_subCellSize;
 
 	bool		m_storeAsHalf;
 	bool		m_useSparseGrids;

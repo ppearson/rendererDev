@@ -1,6 +1,6 @@
 /*
  vdbconv
- Copyright 2014-2016 Peter Pearson.
+ Copyright 2014-2017 Peter Pearson.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ VDBConverter::VDBConverter()
 {
 	m_sizeMultiplier = 2.0f;
 	m_valueMultiplier = 1.0f;
+	m_subCellSize = 32;
 
 	m_storeAsHalf = false;
 	m_useSparseGrids = false;
@@ -471,7 +472,7 @@ bool VDBConverter::saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds
 	unsigned char gridType = 1; // sparse
 	fwrite(&gridType, sizeof(unsigned char), 1, pFinalFile);
 
-	unsigned short subCellSize = 32; // TODO: make this customisable
+	unsigned short subCellSize = m_subCellSize;
 	fwrite(&subCellSize, sizeof(unsigned short), 1, pFinalFile);
 
 	fwrite(&gridResX, sizeof(unsigned int), 1, pFinalFile);
@@ -529,7 +530,7 @@ bool VDBConverter::saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds
 				{
 					value = accessor.getValue(ijk) * m_valueMultiplier;
 
-					sparseGrid.setVoxelValueFloat(iIndex, jIndex, kIndex, (half)value);
+					sparseGrid.setVoxelValueHalf(iIndex, jIndex, kIndex, (half)value);
 				}
 			}
 		}
@@ -549,6 +550,7 @@ bool VDBConverter::saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds
 		static const unsigned char emptyVal = 0;
 		static const unsigned char fullVal = 1;
 
+		// TODO: this is wastefull...
 		if (!pSubCell->isAllocated())
 		{
 			fwrite(&emptyVal, sizeof(unsigned char), 1, pFinalFile);
