@@ -55,6 +55,9 @@ bool VDBConverter::convertSingle(const std::string& srcPath, const std::string& 
 		baseGrid = file.readGrid(nameIter.gridName());
 
 		openvdb::FloatGrid::Ptr grid = openvdb::gridPtrCast<openvdb::FloatGrid>(baseGrid);
+		
+		if (!grid)
+			continue;
 
 		bounds.mergeGrid(grid);
 	}

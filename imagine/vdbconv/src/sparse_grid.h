@@ -73,7 +73,7 @@ public:
 			if (m_pFloatData || m_pHalfData)
 				return;
 
-			unsigned int size = m_resXY * m_resY;
+			unsigned int size = m_resXY * m_resZ;
 
 			if (!isHalf)
 			{
