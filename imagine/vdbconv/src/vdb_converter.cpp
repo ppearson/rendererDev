@@ -320,7 +320,7 @@ bool VDBConverter::saveDenseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds&
 
 	float value = 0.0f;
 
-	unsigned char version = 2;
+	unsigned char version = 3;
 
 	unsigned int gridResX = bounds.max.x() - bounds.min.x() + 1;
 	unsigned int gridResY = bounds.max.y() - bounds.min.y() + 1;
@@ -437,7 +437,7 @@ bool VDBConverter::saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds
 	int &j = ijk[1];
 	int &k = ijk[2];
 
-	unsigned char version = 2;
+	unsigned char version = 3;
 
 	unsigned int gridResX = bounds.max.x() - bounds.min.x() + 1;
 	unsigned int gridResY = bounds.max.y() - bounds.min.y() + 1;
@@ -542,26 +542,46 @@ bool VDBConverter::saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds
 	// now we need to store for each subcell whether they have data or not.
 	// because we know the subcell size and the full grid size, we can work out
 	// each subcell size on-the-fly, without having to store it
+	
+	// group the subCells into batches of 8, so we can be efficient and use an unsigned char
+	// as a bitset for the state of the next 8 subcells
 
-	// TODO: is it worth writing the number of sub-cells just to be sure...?
-
-	std::vector<SparseGrid::SparseSubCell*>::const_iterator itSubCell = sparseGrid.getSubCells().begin();
-	for (; itSubCell != sparseGrid.getSubCells().end(); ++itSubCell)
+	const SparseGrid::SparseSubCell* nextBatch[8];
+	memset(nextBatch, 0, sizeof(void*) * 8);
+	
+	const std::vector<SparseGrid::SparseSubCell*>& subCells = sparseGrid.getSubCells();
+	
+	unsigned int cellsRemaining = subCells.size();
+	
+	for (unsigned int cellIndex = 0; cellIndex < subCells.size(); )
 	{
-		const SparseGrid::SparseSubCell* pSubCell = *itSubCell;
-
-		static const unsigned char emptyVal = 0;
-		static const unsigned char fullVal = 1;
-
-		// TODO: this is wastefull...
-		if (!pSubCell->isAllocated())
+		unsigned int batchSize = std::min(cellsRemaining, 8u);
+		
+		unsigned char subCellStateFlags = 0;
+		unsigned int batchCount = 0;
+		
+		for (unsigned int batchIndex = 0; batchIndex < batchSize; batchIndex++)
 		{
-			fwrite(&emptyVal, sizeof(unsigned char), 1, pFinalFile);
+			const SparseGrid::SparseSubCell* pSubCell = subCells[cellIndex + batchIndex];
+			
+			bool isAllocated = pSubCell->isAllocated();
+			
+			subCellStateFlags |= (isAllocated << batchIndex);
+			
+			if (isAllocated)
+			{
+				nextBatch[batchCount++] = pSubCell;
+			}
 		}
-		else
+		
+		fwrite(&subCellStateFlags, sizeof(unsigned char), 1, pFinalFile);
+		
+		// now write out the contents of any allocated cells
+		
+		for (unsigned int batchIndex = 0; batchIndex < batchCount; batchIndex++)
 		{
-			fwrite(&fullVal, sizeof(unsigned char), 1, pFinalFile);
-
+			const SparseGrid::SparseSubCell* pSubCell = nextBatch[batchIndex];
+			
 			// also write the data - we don't need to write the length, as we can
 			// reverse-engineer it when reading based on info we already have...
 			unsigned int cellDataLength = pSubCell->getResXY() * pSubCell->getResZ();
@@ -577,6 +597,9 @@ bool VDBConverter::saveSparseGrid(openvdb::FloatGrid::Ptr grid, const GridBounds
 				fwrite(pCellHalfData, sizeof(half), cellDataLength, pFinalFile);
 			}
 		}
+		
+		cellIndex += 8;
+		cellsRemaining -= batchSize;
 	}
 
 	fclose(pFinalFile);
