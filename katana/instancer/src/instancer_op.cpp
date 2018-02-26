@@ -1,4 +1,20 @@
-// Created by Peter Pearson, 2016.
+/*
+ Instancer
+ Created by Peter Pearson in 2016-2018.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ You may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ ---------
+*/
 
 #include "instancer_op.h"
 
@@ -50,6 +66,12 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		}
 		
 		FnAttribute::IntAttribute instanceTypeAttr = aGroupAttr.getChildByName("instanceType");
+		bool threeD = false;
+		FnAttribute::IntAttribute threeDAttr = aGroupAttr.getChildByName("threeD");
+		if (threeDAttr.isValid())
+		{
+			threeD = threeDAttr.getValue(0, false) == 1;
+		}
 
 		FnAttribute::IntAttribute numInstancesAttr = aGroupAttr.getChildByName("numInstances");
 		FnAttribute::IntAttribute groupInstancesAttr = aGroupAttr.getChildByName("groupInstances");
@@ -74,8 +96,17 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			areaSpread = areaSpreadAttr.getValue(20.0f, false);
 		}
 		
+		fprintf(stderr, "Area spread: %f\n", areaSpread);
+		
 		// we're dangerously assuming that this will be run first...
-		create2DGrid(numInstances, areaSpread, aTranslates);
+		if (!threeD)
+		{
+			create2DGrid(numInstances, areaSpread, aTranslates);
+		}
+		else
+		{
+			create3DGrid(numInstances, areaSpread, aTranslates);
+		}
 		
 		if (!instanceArray)
 		{
@@ -242,16 +273,15 @@ void InstancerOp::create2DGrid(int numItems, float areaSpread, std::vector<Vec3>
 		int count = 0;
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
-			float xPos = float(xInd);
+			float xSample = (float(xInd) * edgeDelta) - 0.5f;
 			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
 			{
 				if (extra > 0 && ++count >= skipStride)
 				{
 					count = 0;
 					continue;
-				}
+				}				
 				
-				float xSample = (xPos * edgeDelta) - 0.5f;
 				float ySample = (float(yInd) * edgeDelta) - 0.5f;
 	
 				aItemPositions.push_back(Vec3(xSample * areaSpread, 0.0f, ySample * areaSpread));
@@ -262,13 +292,76 @@ void InstancerOp::create2DGrid(int numItems, float areaSpread, std::vector<Vec3>
 	{
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
-			float xPos = float(xInd);
+			float xSample = (float(xInd) * edgeDelta) - 0.5f;
 			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
 			{
-				float xSample = (xPos * edgeDelta) - 0.5f;
+				
 				float ySample = (float(yInd) * edgeDelta) - 0.5f;
 	
 				aItemPositions.push_back(Vec3(xSample * areaSpread, 0.0f, ySample * areaSpread));
+			}
+		}
+	}
+}
+
+void InstancerOp::create3DGrid(int numItems, float areaSpread, std::vector<Vec3>& aItemPositions)
+{
+	// round up to the next cube number, so we get a good even distribution for both X, Y and Z
+	int edgeCount = (int)(cbrtf((float)numItems));
+	if (edgeCount * edgeCount * edgeCount < numItems)
+		edgeCount += 1;
+
+	int fullItemCount = edgeCount * edgeCount * edgeCount;
+
+	int extra = fullItemCount - numItems;
+
+	aItemPositions.reserve(numItems);	
+	
+	float edgeDelta = 1.0f / (float)edgeCount;
+	
+	if (extra > 0)
+	{
+		// we need to skip certain items
+		
+		int skipStride = fullItemCount / extra;
+		
+		int count = 0;
+		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
+		{
+			float xSample = (float(xInd) * edgeDelta) - 0.5f;
+			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
+			{
+				float ySample = (float(yInd) * edgeDelta) - 0.5f;
+				for (unsigned int zInd = 0; zInd < edgeCount; zInd++)
+				{
+					if (extra > 0 && ++count >= skipStride)
+					{
+						count = 0;
+						continue;
+					}
+					
+					float zSample = (float(zInd) * edgeDelta) - 0.5f;
+		
+					aItemPositions.push_back(Vec3(xSample * areaSpread, ySample * areaSpread, zSample * areaSpread));
+				}
+			}
+		}
+	}
+	else
+	{
+		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
+		{
+			float xSample = (float(xInd) * edgeDelta) - 0.5f;
+			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
+			{
+				float ySample = (float(yInd) * edgeDelta) - 0.5f;
+				
+				for (unsigned int zInd = 0; zInd < edgeCount; zInd++)
+				{
+					float zSample = (float(zInd) * edgeDelta) - 0.5f;
+					aItemPositions.push_back(Vec3(xSample * areaSpread, ySample * areaSpread, zSample * areaSpread));
+				}
+	
 			}
 		}
 	}
