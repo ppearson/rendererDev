@@ -1,4 +1,4 @@
-/*
+'''
  Instancer
  Created by Peter Pearson in 2016-2018.
 
@@ -14,7 +14,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  ---------
-*/
+'''
 
 from Katana import Nodes3DAPI
 from Katana import FnAttribute
