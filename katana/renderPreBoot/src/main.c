@@ -30,8 +30,8 @@
 // use main() version with env variables so we can just pass stuff directly through to execve().
 int main(int argc, char** argv, char** envp)
 {
-	char* katanaHome = getenv("KATANA_HOME");
-	if (!katanaHome)
+	char* katanaRoot = getenv("KATANA_ROOT");
+	if (!katanaRoot)
 	{
 		fprintf(stderr, "RenderPreBoot: Error - KATANA_HOME env variable is not set, so cannot find where the real renderboot is.\n\n");
 		return -1;
@@ -46,7 +46,7 @@ int main(int argc, char** argv, char** envp)
 		
 	char realRenderbootPath[2048];
 	memset(realRenderbootPath, 0, 2048);
-	strcpy(realRenderbootPath, katanaHome);
+	strcpy(realRenderbootPath, katanaRoot);
 	strcat(realRenderbootPath, "/bin/renderboot");
 	
 	// TODO: we probably want to do some signal handling here, partly because Katana doesn't really do
