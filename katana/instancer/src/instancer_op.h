@@ -54,8 +54,8 @@ public:
 	static void cook(Foundry::Katana::GeolibCookInterface& interface);
 	
 protected:
-	static void create2DGrid(int numItems, float areaSpread, std::vector<Vec3>& aItemPositions);
-	static void create3DGrid(int numItems, float areaSpread, std::vector<Vec3>& aItemPositions);
+	static void create2DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
+	static void create3DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
 };
 
 #endif // INSTANCEROP_H

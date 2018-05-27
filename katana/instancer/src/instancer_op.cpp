@@ -82,22 +82,31 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			return;
 		}
 		
-		bool instanceArray = false;
+		bool instanceArray = true;
 		FnAttribute::IntAttribute instanceArrayAttr = aGroupAttr.getChildByName("instanceArray");
 		if (instanceArrayAttr.isValid())
 		{
-			instanceArray = instanceArrayAttr.getValue(0, false);
+			instanceArray = instanceArrayAttr.getValue(1, false);
 		}
 		
-		float areaSpread = 20.0f;
+		bool createInstanceIndexAttribute = false;
+		FnAttribute::IntAttribute createInstanceIndexAttributeAttr = aGroupAttr.getChildByName("createInstanceIndexAttribute");
+		if (createInstanceIndexAttributeAttr.isValid())
+		{
+			createInstanceIndexAttribute = createInstanceIndexAttributeAttr.getValue(1, false);
+		}
+		
+		Vec3 areaSpread(20.0f, 20.0f, 20.0f);
 		FnAttribute::FloatAttribute areaSpreadAttr = aGroupAttr.getChildByName("areaSpread");
 		if (areaSpreadAttr.isValid())
 		{
-			areaSpread = areaSpreadAttr.getValue(20.0f, false);
+			FnKat::FloatConstVector data = areaSpreadAttr.getNearestSample(0);
+		
+			areaSpread.x = data[0];
+			areaSpread.y = data[1];
+			areaSpread.z = data[2];
 		}
-		
-		fprintf(stderr, "Area spread: %f\n", areaSpread);
-		
+				
 		// we're dangerously assuming that this will be run first...
 		if (!threeD)
 		{
@@ -185,6 +194,16 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			
 			geoGb.set("instanceMatrix", FnAttribute::FloatAttribute(aMatrixValues.data(), numInstances * 16, 16));
 			
+			std::vector<int> aInstanceIndices;
+			if (createInstanceIndexAttribute)
+			{
+				// if we want the optional (for renderers we care about anyway) instanceIndex attribute, add that as well...
+				// create array of 0, for each index
+				aInstanceIndices.resize(numInstances, 0);
+				
+				geoGb.set("instanceIndex", FnAttribute::IntAttribute(aInstanceIndices.data(), numInstances, 1));
+			}
+			
 			interface.setAttr("geometry", geoGb.build());
 			
 			interface.setAttr("type", FnAttribute::StringAttribute("instance array"));			
@@ -249,7 +268,7 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 	}
 }
 
-void InstancerOp::create2DGrid(int numItems, float areaSpread, std::vector<Vec3>& aItemPositions)
+void InstancerOp::create2DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions)
 {
 	// round up to the next square number, so we get a good even distribution for both X and Y
 	int edgeCount = (int)(std::sqrt((float)numItems));
@@ -260,9 +279,22 @@ void InstancerOp::create2DGrid(int numItems, float areaSpread, std::vector<Vec3>
 
 	int extra = fullItemCount - numItems;
 
+	// TODO: could do resize() here and then just set the members of each item
+	//       directly, which might be more efficient...
 	aItemPositions.reserve(numItems);	
 	
 	float edgeDelta = 1.0f / (float)edgeCount;
+	
+	std::vector<float> xPositions(edgeCount);
+	std::vector<float> yPositions(edgeCount);
+	
+	for (unsigned int i = 0; i < edgeCount; i++)
+	{
+		float samplePos = (float(i) * edgeDelta) - 0.5f;
+		
+		xPositions[i] = samplePos * areaSpread.x;
+		yPositions[i] = samplePos * areaSpread.y;
+	}
 	
 	if (extra > 0)
 	{
@@ -273,18 +305,19 @@ void InstancerOp::create2DGrid(int numItems, float areaSpread, std::vector<Vec3>
 		int count = 0;
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
-			float xSample = (float(xInd) * edgeDelta) - 0.5f;
+			const float xPos = xPositions[xInd];
+			
 			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
 			{
 				if (extra > 0 && ++count >= skipStride)
 				{
 					count = 0;
 					continue;
-				}				
+				}
 				
-				float ySample = (float(yInd) * edgeDelta) - 0.5f;
+				const float yPos = yPositions[yInd];
 	
-				aItemPositions.push_back(Vec3(xSample * areaSpread, 0.0f, ySample * areaSpread));
+				aItemPositions.push_back(Vec3(xPos, 0.0f, yPos));
 			}
 		}
 	}
@@ -292,19 +325,19 @@ void InstancerOp::create2DGrid(int numItems, float areaSpread, std::vector<Vec3>
 	{
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
-			float xSample = (float(xInd) * edgeDelta) - 0.5f;
+			const float xPos = xPositions[xInd];
+			
 			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
 			{
+				const float yPos = yPositions[yInd];
 				
-				float ySample = (float(yInd) * edgeDelta) - 0.5f;
-	
-				aItemPositions.push_back(Vec3(xSample * areaSpread, 0.0f, ySample * areaSpread));
+				aItemPositions.push_back(Vec3(xPos, 0.0f, yPos));
 			}
 		}
 	}
 }
 
-void InstancerOp::create3DGrid(int numItems, float areaSpread, std::vector<Vec3>& aItemPositions)
+void InstancerOp::create3DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions)
 {
 	// round up to the next cube number, so we get a good even distribution for both X, Y and Z
 	int edgeCount = (int)(cbrtf((float)numItems));
@@ -315,9 +348,24 @@ void InstancerOp::create3DGrid(int numItems, float areaSpread, std::vector<Vec3>
 
 	int extra = fullItemCount - numItems;
 
+	// TODO: could do resize() here and then just set the members of each item
+	//       directly, which might be more efficient...
 	aItemPositions.reserve(numItems);	
 	
 	float edgeDelta = 1.0f / (float)edgeCount;
+	
+	std::vector<float> xPositions(edgeCount);
+	std::vector<float> yPositions(edgeCount);
+	std::vector<float> zPositions(edgeCount);
+	
+	for (unsigned int i = 0; i < edgeCount; i++)
+	{
+		float samplePos = (float(i) * edgeDelta) - 0.5f;
+		
+		xPositions[i] = samplePos * areaSpread.x;
+		yPositions[i] = samplePos * areaSpread.y;
+		zPositions[i] = samplePos * areaSpread.z;
+	}
 	
 	if (extra > 0)
 	{
@@ -328,10 +376,10 @@ void InstancerOp::create3DGrid(int numItems, float areaSpread, std::vector<Vec3>
 		int count = 0;
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
-			float xSample = (float(xInd) * edgeDelta) - 0.5f;
+			const float xPos = xPositions[xInd];
 			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
 			{
-				float ySample = (float(yInd) * edgeDelta) - 0.5f;
+				float yPos = yPositions[yInd];
 				for (unsigned int zInd = 0; zInd < edgeCount; zInd++)
 				{
 					if (extra > 0 && ++count >= skipStride)
@@ -340,9 +388,9 @@ void InstancerOp::create3DGrid(int numItems, float areaSpread, std::vector<Vec3>
 						continue;
 					}
 					
-					float zSample = (float(zInd) * edgeDelta) - 0.5f;
+					float zPos = zPositions[zInd];
 		
-					aItemPositions.push_back(Vec3(xSample * areaSpread, ySample * areaSpread, zSample * areaSpread));
+					aItemPositions.push_back(Vec3(xPos, yPos, zPos));
 				}
 			}
 		}
@@ -351,17 +399,16 @@ void InstancerOp::create3DGrid(int numItems, float areaSpread, std::vector<Vec3>
 	{
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
-			float xSample = (float(xInd) * edgeDelta) - 0.5f;
+			const float xPos = xPositions[xInd];
 			for (unsigned int yInd = 0; yInd < edgeCount; yInd++)
 			{
-				float ySample = (float(yInd) * edgeDelta) - 0.5f;
+				float yPos = yPositions[yInd];
 				
 				for (unsigned int zInd = 0; zInd < edgeCount; zInd++)
 				{
-					float zSample = (float(zInd) * edgeDelta) - 0.5f;
-					aItemPositions.push_back(Vec3(xSample * areaSpread, ySample * areaSpread, zSample * areaSpread));
+					float zPos = zPositions[zInd];
+					aItemPositions.push_back(Vec3(xPos, yPos, zPos));
 				}
-	
 			}
 		}
 	}
