@@ -28,12 +28,14 @@
 // Note: we can only print to stderr within renderboot fork. Anything else doesn't get printed to the render log...
 
 // use main() version with env variables so we can just pass stuff directly through to execve().
+// the use of execve() means the real renderboot keeps our PID, although it does mean we can't run any code ourselves
+// after the real renderboot finishes...
 int main(int argc, char** argv, char** envp)
 {
 	char* katanaRoot = getenv("KATANA_ROOT");
 	if (!katanaRoot)
 	{
-		fprintf(stderr, "RenderPreBoot: Error - KATANA_HOME env variable is not set, so cannot find where the real renderboot is.\n\n");
+		fprintf(stderr, "RenderPreBoot: Error - KATANA_ROOT env variable is not set, so cannot find where the real renderboot is.\n\n");
 		return -1;
 	}
 	
@@ -48,11 +50,6 @@ int main(int argc, char** argv, char** envp)
 	memset(realRenderbootPath, 0, 2048);
 	strcpy(realRenderbootPath, katanaRoot);
 	strcat(realRenderbootPath, "/bin/renderboot");
-	
-	// TODO: we probably want to do some signal handling here, partly because Katana doesn't really do
-	//       a good job in the first place with the real renderboot, but mainly as execve() can also trigger signals
-	//       in certain situations... It might also help prevent the signals sent by things like strace -p and heaptrack -p
-	//       when they attach to renderboot getting back to Katana and it killing the process, as currently happens...
 	
 	int nextArg = 0;
 	int argOffset = 0;
@@ -86,7 +83,6 @@ int main(int argc, char** argv, char** envp)
 	if (numExtraCommands == 0)
 	{
 		// if we don't have extra commands, the first arg is just renderboot as normal
-		// first arg is our new target exe we're going to replace...
 		newTargetArgs[0] = realRenderbootPath;
 	}
 	else
@@ -119,6 +115,7 @@ int main(int argc, char** argv, char** envp)
 	
 	nextArg++;
 	
+	// then the remainder of the arguments from the original invocation of us
 	for (int i = nextArg; i < numArgs; i++)
 	{
 		newTargetArgs[i] = argv[i - argOffset];
@@ -132,6 +129,12 @@ int main(int argc, char** argv, char** envp)
 	}
 	return 0;
 #endif
+	
+	// Note: as this effectively replaces our process, it doesn't really return (assuming it succeeds),
+	//       so we can't really free the memory we allocated above, and have to "leak" it...
+	
+	// TODO: it might be worth having the option to call something else so that we can run code after here,
+	//       but that might require handling the environment vars differently...
 	
 	return execve(newTargetArgs[0], newTargetArgs, envp);
 }
