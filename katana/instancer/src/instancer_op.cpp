@@ -1,5 +1,5 @@
 /*
- Instancer
+ InstancesCreate
  Created by Peter Pearson in 2016-2018.
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -71,6 +71,13 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		if (threeDAttr.isValid())
 		{
 			threeD = threeDAttr.getValue(0, false) == 1;
+		}
+		
+		bool floatFormat = false;
+		FnAttribute::IntAttribute floatFormatMatrixAttr = aGroupAttr.getChildByName("floatFormatMatrix");
+		if (floatFormatMatrixAttr.isValid())
+		{
+			floatFormat = floatFormatMatrixAttr.getValue(0, false) == 1;
 		}
 
 		FnAttribute::IntAttribute numInstancesAttr = aGroupAttr.getChildByName("numInstances");
@@ -170,29 +177,59 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			FnAttribute::GroupBuilder geoGb;
 			geoGb.set("instanceSource", FnAttribute::StringAttribute(sourceLocation));
 			
-			// we can use FloatAttr for instance array types
-			std::vector<float> aMatrixValues(numInstances * 16, 0.0f);
-			
-			for (int i = 0; i < numInstances; i++)
+			if (floatFormat)
 			{
-				const Vec3& trans = aTranslates[i];
+				// we can use FloatAttr for instance array types
+				std::vector<float> aMatrixValues(numInstances * 16, 0.0f);
 				
-				// set matrix values
+				for (int i = 0; i < numInstances; i++)
+				{
+					const Vec3& trans = aTranslates[i];
+					
+					// set matrix values
+					
+					unsigned int matrixStartOffset = i * 16;
+					
+					aMatrixValues[matrixStartOffset] = 1.0f;
+					aMatrixValues[matrixStartOffset + 5] = 1.0f;
+					aMatrixValues[matrixStartOffset + 10] = 1.0f;
+					
+					aMatrixValues[matrixStartOffset + 12] = trans.x;
+					aMatrixValues[matrixStartOffset + 13] = trans.y;
+					aMatrixValues[matrixStartOffset + 14] = trans.z;
+					
+					aMatrixValues[matrixStartOffset + 15] = 1.0f;
+				}
 				
-				unsigned int matrixStartOffset = i * 16;
-				
-				aMatrixValues[matrixStartOffset] = 1.0f;
-				aMatrixValues[matrixStartOffset + 5] = 1.0f;
-				aMatrixValues[matrixStartOffset + 10] = 1.0f;
-				
-				aMatrixValues[matrixStartOffset + 12] = trans.x;
-				aMatrixValues[matrixStartOffset + 13] = trans.y;
-				aMatrixValues[matrixStartOffset + 14] = trans.z;
-				
-				aMatrixValues[matrixStartOffset + 15] = 1.0f;
+				geoGb.set("instanceMatrix", FnAttribute::FloatAttribute(aMatrixValues.data(), numInstances * 16, 16));
 			}
-			
-			geoGb.set("instanceMatrix", FnAttribute::FloatAttribute(aMatrixValues.data(), numInstances * 16, 16));
+			else
+			{
+				// double format
+				
+				std::vector<double> aMatrixValues(numInstances * 16, 0.0);
+				
+				for (int i = 0; i < numInstances; i++)
+				{
+					const Vec3& trans = aTranslates[i];
+					
+					// set matrix values
+					
+					unsigned int matrixStartOffset = i * 16;
+					
+					aMatrixValues[matrixStartOffset] = 1.0;
+					aMatrixValues[matrixStartOffset + 5] = 1.0;
+					aMatrixValues[matrixStartOffset + 10] = 1.0;
+					
+					aMatrixValues[matrixStartOffset + 12] = trans.x;
+					aMatrixValues[matrixStartOffset + 13] = trans.y;
+					aMatrixValues[matrixStartOffset + 14] = trans.z;
+					
+					aMatrixValues[matrixStartOffset + 15] = 1.0;
+				}
+				
+				geoGb.set("instanceMatrix", FnAttribute::DoubleAttribute(aMatrixValues.data(), numInstances * 16, 16));
+			}
 			
 			std::vector<int> aInstanceIndices;
 			if (createInstanceIndexAttribute)
@@ -418,5 +455,5 @@ DEFINE_GEOLIBOP_PLUGIN(InstancerOp)
 
 void registerPlugins()
 {
-	REGISTER_PLUGIN(InstancerOp, "Instancer", 0, 1);
+	REGISTER_PLUGIN(InstancerOp, "InstancesCreate", 0, 1);
 }

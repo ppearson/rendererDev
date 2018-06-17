@@ -1,5 +1,5 @@
 '''
- Instancer
+ InstancesCreate
  Created by Peter Pearson in 2016-2018.
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 from Katana import Nodes3DAPI
 from Katana import FnAttribute
 
-def buildInstancerOpChain(node, interface):
+def buildInstancesCreateOpChain(node, interface):
 	interface.setMinRequiredInputs(0)
 	argsGb = FnAttribute.GroupBuilder()
 
@@ -30,6 +30,7 @@ def buildInstancerOpChain(node, interface):
 	createInstanceIndexAttributeParam = node.getParameter('createInstanceIndexAttribute')
 	
 	threeDParam = node.getParameter('threeD')
+	floatFormatMatrixParam = node.getParameter('floatFormatMatrix')
 	areaSpreadParamX = node.getParameter('areaSpread.i0')
 	areaSpreadParamY = node.getParameter('areaSpread.i1')
 	areaSpreadParamZ = node.getParameter('areaSpread.i2')
@@ -46,22 +47,24 @@ def buildInstancerOpChain(node, interface):
 		argsGb.set(attrsHierarchy + '.a.instanceArray', FnAttribute.IntAttribute(instanceArrayParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.createInstanceIndexAttribute', FnAttribute.IntAttribute(createInstanceIndexAttributeParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.threeD', FnAttribute.IntAttribute(threeDParam.getValue(0)))
+		argsGb.set(attrsHierarchy + '.a.floatFormatMatrix', FnAttribute.IntAttribute(floatFormatMatrixParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.areaSpread', FnAttribute.FloatAttribute([areaSpreadParamX.getValue(0), areaSpreadParamY.getValue(0), areaSpreadParamZ.getValue(0)], 3))
 		argsGb.set(attrsHierarchy + '.a.groupInstances', FnAttribute.IntAttribute(groupInstancesParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.groupSize', FnAttribute.IntAttribute(groupSizeParam.getValue(0)))
 
-	interface.appendOp('Instancer', argsGb.build())
+	interface.appendOp('InstancesCreate', argsGb.build())
 
-nodeTypeBuilder = Nodes3DAPI.NodeTypeBuilder('Instancer')
+nodeTypeBuilder = Nodes3DAPI.NodeTypeBuilder('InstancesCreate')
 
 gb = FnAttribute.GroupBuilder()
-gb.set('targetLocation', FnAttribute.StringAttribute('/root/world/geo/instancer1'))
+gb.set('targetLocation', FnAttribute.StringAttribute('/root/world/geo/instances1'))
 gb.set('sourceLocation', FnAttribute.StringAttribute(''))
-gb.set('numInstances', FnAttribute.IntAttribute(100))
+gb.set('numInstances', FnAttribute.IntAttribute(1000))
 gb.set('instanceArray', FnAttribute.IntAttribute(1))
 gb.set('createInstanceIndexAttribute', FnAttribute.IntAttribute(0))
 gb.set('threeD', FnAttribute.IntAttribute(0))
-gb.set('areaSpread', FnAttribute.FloatAttribute([20.0, 20.0, 20.0], 3))
+gb.set('floatFormatMatrix', FnAttribute.IntAttribute(0))
+gb.set('areaSpread', FnAttribute.FloatAttribute([200.0, 200.0, 200.0], 3))
 gb.set('groupInstances', FnAttribute.IntAttribute(0))
 gb.set('groupSize', FnAttribute.IntAttribute(400))
 
@@ -72,11 +75,12 @@ nodeTypeBuilder.setHintsForParameter('sourceLocation', {'widget' : 'scenegraphLo
 nodeTypeBuilder.setHintsForParameter('instanceArray', {'widget' : 'checkBox'})
 nodeTypeBuilder.setHintsForParameter('createInstanceIndexAttribute', {'widget' : 'checkBox',
 			'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../instanceArray', 'conditionalVisValue' : '1',
-			'help' : 'Some renderers require an attribute pointing to the index of the sourceGeo.'})
+			'help' : 'Some renderers require an attribute pointing to the index of the sourceGeo when using instance arrays.'})
 nodeTypeBuilder.setHintsForParameter('threeD', {'widget' : 'checkBox'})
+nodeTypeBuilder.setHintsForParameter('floatFormatMatrix', {'widget' : 'checkBox'})
 nodeTypeBuilder.setHintsForParameter('numInstances', {'int' : True})
 nodeTypeBuilder.setHintsForParameter('groupInstances', {'widget' : 'checkBox', 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../instanceArray', 'conditionalVisValue' : '0'})
 nodeTypeBuilder.setHintsForParameter('groupSize', {'int' : True, 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../groupInstances', 'conditionalVisValue' : '1'})
 
-nodeTypeBuilder.setBuildOpChainFnc(buildInstancerOpChain)
+nodeTypeBuilder.setBuildOpChainFnc(buildInstancesCreateOpChain)
 nodeTypeBuilder.build()
