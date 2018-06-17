@@ -26,14 +26,14 @@ ENDIF(${MODERN_GCC} MATCHES "1")
 SET(CMAKE_CXX_FLAGS_DEBUG "-g -mfpmath=sse -fPIC -ffast-math -msse -msse2 -msse3 -mssse3 -msse4")
 SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -mfpmath=sse -fPIC -ffast-math -msse -msse2 -msse3 -mssse3 -msse4")
 
-SET(KATANA_PLUGIN_API_PATH "/opt/katana_2.5.3/plugin_apis/")
+SET(KATANA_PLUGIN_API_PATH "/opt/Katana3.0v1/plugin_apis/")
 
 FILE(GLOB_RECURSE katanaAPI_SOURCES_ORIGINAL "${KATANA_PLUGIN_API_PATH}/src/*.cpp")
 
 SET(katanaAPI_SOURCES "")
 # strip out stuff we don't want
 FOREACH(file ${katanaAPI_SOURCES_ORIGINAL})
-	STRING(REGEX MATCH "([/]FnDisplayDriver[/]|[/]FnAsset[/]|[/]FnRender[/]|[/]FnRendererInfo[/])" test1 ${file})
+	STRING(REGEX MATCH "([/]FnDisplayDriver[/]|[/]FnAsset[/]|[/]FnRender[/]|[/]FnRendererInfo[/]|[/]FnViewer[/])" test1 ${file})
 	IF(test1)
 	ELSE(test1)
 		LIST(APPEND katanaAPI_SOURCES ${file})
