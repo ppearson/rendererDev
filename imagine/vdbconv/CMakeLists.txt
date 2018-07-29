@@ -7,6 +7,11 @@ include(ExternalProject)
 SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -std=c++11 -mfpmath=sse -fPIC -ffast-math -fvisibility-inlines-hidden -fvisibility=hidden")
 SET(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++11 -mfpmath=sse -fPIC -ffast-math")
 
+SET(OPENVDB_DIR "/opt/OpenVDB")
+#SET(BOOST_DIR "")
+#SET(TBB_DIR "")
+#SET(ILMBASE_DIR "")
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING
 	  "Choose the type of build, options are: None Debug Release"
@@ -79,13 +84,19 @@ ENDIF(USE_OWN_OPENEXR)
 #include_directories(src)
 FILE(GLOB_RECURSE vdbc_SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 
-include_directories("/opt/OpenVDB/include")
+include_directories("${OPENVDB_DIR}/include")
+#include_directories("${BOOST_DIR}/include")
+#include_directories("${TBB_DIR}/include")
+#include_directories("${ILMBASE_DIR}/include")
 include_directories(${EXTERNAL_INCLUDE_DIRS})
+
+LINK_DIRECTORIES("${OPENVDB_DIR}/lib")
+#LINK_DIRECTORIES("${BOOST_DIR}/lib")
+#LINK_DIRECTORIES("${ILMBASE_DIR}/lib")
+#LINK_DIRECTORIES("${TBB_DIR}/lib")
+LINK_DIRECTORIES("/usr/lib/x86_64-linux-gnu")
 
 ADD_EXECUTABLE(vdbconv MACOSX_BUNDLE ${vdbc_SOURCES})
 
-LINK_DIRECTORIES("/opt/OpenVDB/lib")
-LINK_DIRECTORIES("/usr/lib/x86_64-linux-gnu")
-
-TARGET_LINK_LIBRARIES(vdbconv "/opt/OpenVDB/lib/libopenvdb.so" "tbb" ${EXTERNAL_LIBRARIES})
+TARGET_LINK_LIBRARIES(vdbconv "openvdb" "tbb" ${EXTERNAL_LIBRARIES})
 
