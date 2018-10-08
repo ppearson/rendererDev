@@ -23,8 +23,6 @@
 
 #include <stdio.h>
 
-static std::vector<Vec3>	aPositions;
-
 void PointCloudCreateOp::setup(Foundry::Katana::GeolibSetupInterface& interface)
 {
 	interface.setThreading(Foundry::Katana::GeolibSetupInterface::ThreadModeConcurrent);
@@ -79,7 +77,7 @@ void PointCloudCreateOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			areaSpread.z = data[2];
 		}
 				
-		// we're dangerously assuming that this will be run first...
+		std::vector<Vec3> aPositions;
 		create3DGrid(numPoints, areaSpread, aPositions);
 						
 		FnAttribute::GroupBuilder geoGb;
