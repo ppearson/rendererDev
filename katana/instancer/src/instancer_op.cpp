@@ -315,6 +315,8 @@ void InstancerOp::create2DGrid(int numItems, const Vec3& areaSpread, std::vector
 	int fullItemCount = edgeCount * edgeCount;
 
 	int extra = fullItemCount - numItems;
+	
+	aItemPositions.clear();
 
 	// TODO: could do resize() here and then just set the members of each item
 	//       directly, which might be more efficient...
@@ -384,6 +386,8 @@ void InstancerOp::create3DGrid(int numItems, const Vec3& areaSpread, std::vector
 	int fullItemCount = edgeCount * edgeCount * edgeCount;
 
 	int extra = fullItemCount - numItems;
+	
+	aItemPositions.clear();
 
 	// TODO: could do resize() here and then just set the members of each item
 	//       directly, which might be more efficient...
