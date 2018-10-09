@@ -63,8 +63,64 @@ void PointCloudCreateOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			return;
 		}
 		
-		FnAttribute::FloatAttribute pointWidthAttr = aGroupAttr.getChildByName("pointWidth");
-		float pointConstantWidth = pointWidthAttr.getValue(0.1f, false);
+		float pointConstantWidth = 0.1f;
+		std::vector<float> aPointWidths;
+		int pointWidthType = 0;
+		FnAttribute::IntAttribute pointWidthTypeAttr = aGroupAttr.getChildByName("pointWidthType");
+		if (pointWidthTypeAttr.isValid())
+		{
+			pointWidthType = pointWidthTypeAttr.getValue(0, false);
+		}
+		if (pointWidthType == 0 || pointWidthType == 1)
+		{
+			// it's constant types
+			FnAttribute::FloatAttribute constantPointWidthAttr = aGroupAttr.getChildByName("constantPointWidth");
+			if (constantPointWidthAttr.isValid())
+			{
+				pointConstantWidth = constantPointWidthAttr.getValue(0.1f, false);
+			}
+			
+			if (pointWidthType == 1)
+			{
+				// fill vector with same value
+				aPointWidths.resize(numPoints, pointConstantWidth);
+			}
+		}
+		else if (pointWidthType == 2)
+		{
+			// it's random (but seeded) between min and max
+			FnAttribute::FloatAttribute randomPointWidthMinAttr = aGroupAttr.getChildByName("randomPointWidthMin");
+			FnAttribute::FloatAttribute randomPointWidthMaxAttr = aGroupAttr.getChildByName("randomPointWidthMax");
+			if (randomPointWidthMinAttr.isValid() && randomPointWidthMaxAttr.isValid())
+			{
+				float randomPointWidthMinValue = randomPointWidthMinAttr.getValue(0.1f, false);
+				float randomPointWidthMaxValue = randomPointWidthMaxAttr.getValue(0.2f, false);
+				float delta = randomPointWidthMaxValue - randomPointWidthMinValue;
+				float numValues = 10.0f;
+				float jumpValue = delta / numValues;
+				// TODO: proper random numbers?
+				
+				float widthValue = randomPointWidthMinValue;
+				
+				unsigned int bounceCount = 0;
+				aPointWidths.reserve(numPoints);
+				for (int64_t i = 0; i < numPoints; i++)
+				{
+					aPointWidths.push_back(widthValue);
+					
+					// TODO: proper bounce up and down...
+					if (bounceCount++ < 10)
+					{
+						widthValue += jumpValue;
+					}
+					else
+					{
+						bounceCount = 0;
+						widthValue = randomPointWidthMinValue;
+					}
+				}
+			}
+		}
 		
 		Vec3 areaSpread(20.0f, 20.0f, 20.0f);
 		FnAttribute::FloatAttribute areaSpreadAttr = aGroupAttr.getChildByName("areaSpread");
@@ -76,7 +132,7 @@ void PointCloudCreateOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			areaSpread.y = data[1];
 			areaSpread.z = data[2];
 		}
-				
+		
 		std::vector<Vec3> aPositions;
 		create3DGrid(numPoints, areaSpread, aPositions);
 						
@@ -88,9 +144,16 @@ void PointCloudCreateOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		
 		pointGb.set("P", FnAttribute::FloatAttribute(pData, numPoints * 3, 3));
 		
-		pointGb.set("constantwidth", FnAttribute::FloatAttribute(pointConstantWidth));
+		if (pointWidthType == 0)
+		{
+			pointGb.set("constantwidth", FnAttribute::FloatAttribute(pointConstantWidth));
+		}
+		else if (aPointWidths.size() == numPoints)
+		{
+			pointGb.set("width", FnAttribute::FloatAttribute(aPointWidths.data(), numPoints, 1));
+		}
 		
-		geoGb.set("point", pointGb.build());		
+		geoGb.set("point", pointGb.build());
 		
 		interface.setAttr("geometry", geoGb.build());
 		

@@ -1,12 +1,12 @@
 from subprocess import call
 import os
 
-source = "/home/peter/Content/Source/Textures/udims/udim2_%d.png"
-dest = "/home/peter/Content/Source/Textures/udims/tiled/udim1_%d.exr"
+source = "/home/peter/textures/udim1/scanline/checker_4k_%d.exr"
+dest = "/home/peter/textures/udim1/tiledmip/checker_4k_%d.exr"
 
 mkTextBin = "maketx"
 
-for udim in range(1001, 1100):
+for udim in range(1001, 1171):
 	localSrc = source % (udim)
 	localDst = dest % (udim)
 
