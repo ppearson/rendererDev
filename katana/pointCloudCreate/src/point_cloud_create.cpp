@@ -155,6 +155,100 @@ void PointCloudCreateOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		
 		geoGb.set("point", pointGb.build());
 		
+		bool needArbitrary = false;
+		
+		FnAttribute::GroupBuilder arbitraryGb;
+		
+		FnAttribute::IntAttribute extraFloatPrimvarTypeAttr = aGroupAttr.getChildByName("extraFloatPrimvarType");
+		int extraFloatPrimvarTypeValue = extraFloatPrimvarTypeAttr.getValue(0, false);
+		if (extraFloatPrimvarTypeValue > 0)
+		{
+		    FnAttribute::GroupBuilder floatPrimvarGb;
+		
+		    floatPrimvarGb.set("scope", FnAttribute::StringAttribute("point"));
+		    floatPrimvarGb.set("elementSize", FnAttribute::IntAttribute(1));
+		
+		    std::vector<float> primvarValues;
+			if (extraFloatPrimvarTypeValue == 1)
+			{
+				primvarValues.resize(numPoints, 42.0f);
+			}
+			else
+			{
+				primvarValues.resize(numPoints);
+				float randomValue = 1.3f;
+				unsigned int bounceCount = 0;
+				for (int64_t i = 0; i < numPoints; i++)
+				{
+					float& fValue = primvarValues[i];
+					if (bounceCount++ < 10)
+					{
+						fValue = randomValue;
+						randomValue += 0.7f;
+					}
+					else
+					{
+						bounceCount = 0;
+						fValue = randomValue;
+						randomValue = 1.3f;
+					}
+				}
+			}
+		    floatPrimvarGb.set("value", FnAttribute::FloatAttribute(primvarValues.data(), numPoints, 1));
+			
+			arbitraryGb.set("extraFloatPrimvar", floatPrimvarGb.build());			
+			needArbitrary = true;
+		}
+		
+		FnAttribute::IntAttribute extraVectorPrimvarTypeAttr = aGroupAttr.getChildByName("extraVectorPrimvarType");
+		int extraVectorPrimvarTypeValue = extraVectorPrimvarTypeAttr.getValue(0, false);
+		if (extraVectorPrimvarTypeValue > 0)
+		{
+		    FnAttribute::GroupBuilder vectorPrimvarGb;
+		
+		    vectorPrimvarGb.set("scope", FnAttribute::StringAttribute("point"));
+			// TODO: fix this
+		    vectorPrimvarGb.set("elementSize", FnAttribute::IntAttribute(3)); // should really be 1 with outputType set...
+//			vectorPrimvarGb.set("outputType", FnAttribute::StringAttribute("vector3"));
+		
+			std::vector<float> primvarValues;
+			if (extraVectorPrimvarTypeValue == 1)
+			{
+				primvarValues.resize(numPoints * 3, 0.42f);
+			}
+			else
+			{
+				primvarValues.resize(numPoints * 3);
+				float randomValue = 0.3f;
+				unsigned int bounceCount = 0;
+				for (int64_t i = 0; i < numPoints * 3; i++)
+				{
+					float& fValue = primvarValues[i];
+					if (bounceCount++ < 20)
+					{
+						fValue = randomValue;
+						randomValue += 0.05f;
+					}
+					else
+					{
+						bounceCount = 0;
+						fValue = randomValue;
+						randomValue = 0.3f;
+					}
+				}
+			}
+			
+		    vectorPrimvarGb.set("value", FnAttribute::FloatAttribute(primvarValues.data(), numPoints * 3, 3));
+			
+			arbitraryGb.set("extraVectorPrimvar", vectorPrimvarGb.build());
+			needArbitrary = true;
+		}
+		
+		if (needArbitrary)
+		{
+			geoGb.set("arbitrary", arbitraryGb.build());
+		}
+		
 		interface.setAttr("geometry", geoGb.build());
 		
 		interface.setAttr("type", FnAttribute::StringAttribute("pointcloud"));			
