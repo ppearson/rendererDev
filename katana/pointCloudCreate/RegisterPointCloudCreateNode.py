@@ -25,6 +25,7 @@ def buildPointCloudCreateOpChain(node, interface):
 
 	targetLocationParam = node.getParameter('location')
 	numPointsParam = node.getParameter('numPoints')
+	splitPointcloudLocationsParam = node.getParameter('splitPointcloudLocations')
 	pointWidthTypeParam = node.getParameter('pointWidthType')
 	constantPointWidthParam = node.getParameter('constantPointWidth')
 	randomPointWidthMinParam = node.getParameter('randomPointWidthMin')
@@ -42,6 +43,7 @@ def buildPointCloudCreateOpChain(node, interface):
 		attrsHierarchy = 'c.' + '.c.'.join(locationPaths)
 
 		argsGb.set(attrsHierarchy + '.a.numPoints', FnAttribute.IntAttribute(numPointsParam.getValue(0)))
+		argsGb.set(attrsHierarchy + '.a.splitPointcloudLocations', FnAttribute.IntAttribute(splitPointcloudLocationsParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.pointWidthType', FnAttribute.IntAttribute(pointWidthTypeParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.constantPointWidth', FnAttribute.FloatAttribute(constantPointWidthParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.randomPointWidthMin', FnAttribute.FloatAttribute(randomPointWidthMinParam.getValue(0)))
@@ -58,6 +60,7 @@ nodeTypeBuilder = Nodes3DAPI.NodeTypeBuilder('PointCloudCreate')
 gb = FnAttribute.GroupBuilder()
 gb.set('location', FnAttribute.StringAttribute('/root/world/geo/pointcloud1'))
 gb.set('numPoints', FnAttribute.IntAttribute(10000))
+gb.set('splitPointcloudLocations', FnAttribute.IntAttribute(0))
 gb.set('pointWidthType', FnAttribute.IntAttribute(0))
 gb.set('constantPointWidth', FnAttribute.FloatAttribute(0.1))
 gb.set('randomPointWidthMin', FnAttribute.FloatAttribute(0.1))
@@ -71,6 +74,7 @@ nodeTypeBuilder.setParametersTemplateAttr(gb.build())
 
 nodeTypeBuilder.setHintsForParameter('location', {'widget' : 'scenegraphLocation'})
 nodeTypeBuilder.setHintsForParameter('numPoints', {'int' : True})
+nodeTypeBuilder.setHintsForParameter('splitPointcloudLocations', {'widget' : 'checkBox'})
 nodeTypeBuilder.setHintsForParameter('pointWidthType', {'widget' : 'mapper',
 				 'options' : 'single constant width:0|per point constant width:1|random width per point:2'})
 nodeTypeBuilder.setHintsForParameter('constantPointWidth', {'conditionalVisOp' : 'lessThanOrEqualTo', 'conditionalVisPath' : '../pointWidthType', 'conditionalVisValue' : '1'})
