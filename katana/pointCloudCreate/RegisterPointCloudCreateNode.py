@@ -24,6 +24,9 @@ def buildPointCloudCreateOpChain(node, interface):
 	argsGb = FnAttribute.GroupBuilder()
 
 	targetLocationParam = node.getParameter('location')
+	generateTypeParam = node.getParameter('generateType')
+	fileTypeParam = node.getParameter('fileType')
+	filePathParam = node.getParameter('filePath')
 	numPointsParam = node.getParameter('numPoints')
 	splitPointcloudLocationsParam = node.getParameter('splitPointcloudLocations')
 	pointWidthTypeParam = node.getParameter('pointWidthType')
@@ -42,8 +45,13 @@ def buildPointCloudCreateOpChain(node, interface):
 		locationPaths = location[1:].split('/')[1:]
 		attrsHierarchy = 'c.' + '.c.'.join(locationPaths)
 
-		argsGb.set(attrsHierarchy + '.a.numPoints', FnAttribute.IntAttribute(numPointsParam.getValue(0)))
-		argsGb.set(attrsHierarchy + '.a.splitPointcloudLocations', FnAttribute.IntAttribute(splitPointcloudLocationsParam.getValue(0)))
+		argsGb.set(attrsHierarchy + '.a.generateType', FnAttribute.IntAttribute(generateTypeParam.getValue(0)))
+		if generateTypeParam.getValue(0) == 1:
+			argsGb.set(attrsHierarchy + '.a.fileType', FnAttribute.IntAttribute(fileTypeParam.getValue(0)))
+			argsGb.set(attrsHierarchy + '.a.filePath', FnAttribute.StringAttribute(filePathParam.getValue(0)))
+		else:
+			argsGb.set(attrsHierarchy + '.a.numPoints', FnAttribute.IntAttribute(numPointsParam.getValue(0)))
+			argsGb.set(attrsHierarchy + '.a.splitPointcloudLocations', FnAttribute.IntAttribute(splitPointcloudLocationsParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.pointWidthType', FnAttribute.IntAttribute(pointWidthTypeParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.constantPointWidth', FnAttribute.FloatAttribute(constantPointWidthParam.getValue(0)))
 		argsGb.set(attrsHierarchy + '.a.randomPointWidthMin', FnAttribute.FloatAttribute(randomPointWidthMinParam.getValue(0)))
@@ -59,6 +67,9 @@ nodeTypeBuilder = Nodes3DAPI.NodeTypeBuilder('PointCloudCreate')
 
 gb = FnAttribute.GroupBuilder()
 gb.set('location', FnAttribute.StringAttribute('/root/world/geo/pointcloud1'))
+gb.set('generateType', FnAttribute.IntAttribute(0))
+gb.set('fileType', FnAttribute.IntAttribute(0))
+gb.set('filePath', FnAttribute.StringAttribute(""))
 gb.set('numPoints', FnAttribute.IntAttribute(10000))
 gb.set('splitPointcloudLocations', FnAttribute.IntAttribute(0))
 gb.set('pointWidthType', FnAttribute.IntAttribute(0))
@@ -73,19 +84,30 @@ gb.set('extraColorPrimvarType', FnAttribute.IntAttribute(0))
 nodeTypeBuilder.setParametersTemplateAttr(gb.build())
 
 nodeTypeBuilder.setHintsForParameter('location', {'widget' : 'scenegraphLocation'})
-nodeTypeBuilder.setHintsForParameter('numPoints', {'int' : True})
-nodeTypeBuilder.setHintsForParameter('splitPointcloudLocations', {'widget' : 'checkBox'})
+nodeTypeBuilder.setHintsForParameter('generateType', {'widget' : 'mapper',
+				 'options' : 'regular cube of points:0|read from file:1'})
+nodeTypeBuilder.setHintsForParameter('fileType', {'widget' : 'mapper',
+				 'options' : 'ASCII positions (space separated):0|ASCII positions and radii (space separated):1',
+				 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '1'})
+nodeTypeBuilder.setHintsForParameter('filePath', {'widget' : 'assetIdInput',
+				 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '1'})
+nodeTypeBuilder.setHintsForParameter('numPoints', {'int' : True, 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '0'})
+nodeTypeBuilder.setHintsForParameter('splitPointcloudLocations', {'widget' : 'checkBox', 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '0'})
 nodeTypeBuilder.setHintsForParameter('pointWidthType', {'widget' : 'mapper',
 				 'options' : 'single constant width:0|per point constant width:1|random width per point:2'})
 nodeTypeBuilder.setHintsForParameter('constantPointWidth', {'conditionalVisOp' : 'lessThanOrEqualTo', 'conditionalVisPath' : '../pointWidthType', 'conditionalVisValue' : '1'})
 nodeTypeBuilder.setHintsForParameter('randomPointWidthMin', {'conditionalVisOp' : 'greaterThan', 'conditionalVisPath' : '../pointWidthType', 'conditionalVisValue' : '1'})
 nodeTypeBuilder.setHintsForParameter('randomPointWidthMax', {'conditionalVisOp' : 'greaterThan', 'conditionalVisPath' : '../pointWidthType', 'conditionalVisValue' : '1'})
+nodeTypeBuilder.setHintsForParameter('areaSpread', {'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '0'})
 nodeTypeBuilder.setHintsForParameter('extraFloatPrimvarType', {'widget' : 'mapper',
-				 'options' : 'off:0|per point constant value:1|random value per point:2'})
+				 'options' : 'off:0|per point constant value:1|random value per point:2',
+				 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '0'})
 nodeTypeBuilder.setHintsForParameter('extraVectorPrimvarType', {'widget' : 'mapper',
-				 'options' : 'off:0|per point constant value:1|random value per point:2'})
+				 'options' : 'off:0|per point constant value:1|random value per point:2',
+				 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '0'})
 nodeTypeBuilder.setHintsForParameter('extraColorPrimvarType', {'widget' : 'mapper',
-				 'options' : 'off:0|per point constant value:1|random value per point:2'})
+				 'options' : 'off:0|per point constant value:1|random value per point:2',
+				 'conditionalVisOp' : 'equalTo', 'conditionalVisPath' : '../generateType', 'conditionalVisValue' : '0'})
 
 nodeTypeBuilder.setBuildOpChainFnc(buildPointCloudCreateOpChain)
 nodeTypeBuilder.build()

@@ -52,7 +52,14 @@ public:
 	static void cook(Foundry::Katana::GeolibCookInterface& interface);
 	
 protected:
+	
+	static void createGridPoints(Foundry::Katana::GeolibCookInterface& interface);
+	static void createPointsFromFile(Foundry::Katana::GeolibCookInterface& interface);	
+	
 	static void create3DGrid(int64_t numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
+	
+	static bool loadPositionsFromASCIIFile(const std::string& filePath, std::vector<Vec3>& aItemPositions);
+	static bool loadPositionsAndRadiiFromASCIIFile(const std::string& filePath, std::vector<Vec3>& aItemPositions, std::vector<float>& aItemWidths);
 };
 
 #endif // POINT_CLOUD_CREATE_H
