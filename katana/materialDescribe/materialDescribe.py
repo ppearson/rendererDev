@@ -16,9 +16,11 @@
  ---------
 '''
 
+import os
+
 from Katana import Nodes3DAPI
 from Katana import FnAttribute
-#from Katana import FnGeolibServices
+from Katana import FnGeolibServices
 
 # plugin stuff - should be in separate files at some point...
 
@@ -46,16 +48,107 @@ class ImaginePlugin(MaterialPlugin):
         # return name and description
         return ("imagine", "Imagine built-in")
     
-    def generateMaterialAttributes(self, materialDefinition):
-        return None
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath):
+        shaderNameItem = "imagineSurfaceShader"
+        shaderParamsItem = "imagineSurfaceParams"
+
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, "material." + shaderNameItem, FnAttribute.StringAttribute("StandardImage"))
+
+        attrLevelItemPath = "material." + shaderParamsItem + "."
+
+        for matDefName, matDefItem in materialDefinition.iteritems():
+            if matDefName == "diffColour":
+                if matDefItem[0] == "col3":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "diff_col", FnAttribute.FloatAttribute(matDefItem[1], 3))
+                elif matDefItem[0] == "image":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "diff_col_texture", FnAttribute.StringAttribute(matDefItem[1]))
+            elif matDefName == "diffRoughness":
+                if matDefItem[0] == "float":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "diff_roughness", FnAttribute.FloatAttribute(matDefItem[1]))
+                elif matDefItem[0] == "image":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "diff_roughness_texture", FnAttribute.StringAttribute(matDefItem[1]))
+            elif matDefName == "refraIndex" and matDefItem[0] == "float":
+                materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "refraction_index", FnAttribute.StringAttribute(matDefItem[1]))
+            elif matDefName == "specColour":
+                if matDefItem[0] == "col3":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_col", FnAttribute.FloatAttribute(matDefItem[1], 3))
+                elif matDefItem[0] == "image":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_col_texture", FnAttribute.StringAttribute(matDefItem[1]))
+            elif matDefName == "specRoughness":
+                if matDefItem[0] == "float":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_roughness", FnAttribute.FloatAttribute(matDefItem[1]))
+                elif matDefItem[0] == "image":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_roughness_texture", FnAttribute.StringAttribute(matDefItem[1]))
+
 
 class ArnoldPlugin(MaterialPlugin):
     def pluginInfo(self):
         # return name and description
         return ("arnold", "Arnold built-in Standard")
+
+    def addImageShadingNode(self, materialStaticSCB, materialLocationPath, imagePath, nodeName):
+        matAttrPath = "material.nodes." + nodeName + "."
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "name", FnAttribute.StringAttribute(nodeName))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "type", FnAttribute.StringAttribute("image"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "target", FnAttribute.StringAttribute("arnold"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "srcName", FnAttribute.StringAttribute(nodeName))
+
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "parameters.filename", FnAttribute.StringAttribute(imagePath))
     
-    def generateMaterialAttributes(self, materialDefinition):
-        return None
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath):
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.style", FnAttribute.StringAttribute("network"))
+
+        nodeName = "ArnoldShadingNode"
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.terminals.arnoldSurface", FnAttribute.StringAttribute(nodeName))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.terminals.arnoldSurfacePort", FnAttribute.StringAttribute("out"))
+
+        matAttrPath = "material.nodes." + nodeName + "."
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "name", FnAttribute.StringAttribute(nodeName))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "type", FnAttribute.StringAttribute("standard_surface"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "target", FnAttribute.StringAttribute("arnold"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "srcName", FnAttribute.StringAttribute(nodeName))
+
+        imageNodeCount = 1
+
+        matParamsPath = matAttrPath + "parameters."
+
+        for matDefName, matDefItem in materialDefinition.iteritems():
+            if matDefName == "diffColour":
+                materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "base", FnAttribute.FloatAttribute(1.0))
+                if matDefItem[0] == "col3":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "base_color", FnAttribute.FloatAttribute(matDefItem[1], 3))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "ASNImage%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.base_color", FnAttribute.StringAttribute("out@" + imageNodeName))
+            elif matDefName == "diffRoughness":
+                if matDefItem[0] == "float":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "diffuse_roughness", FnAttribute.FloatAttribute(matDefItem[1]))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "ASNImage%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.diffuse_roughness", FnAttribute.StringAttribute("out@" + imageNodeName))
+            elif matDefName == "refraIndex" and matDefItem[0] == "float":
+                materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specular_IOR", FnAttribute.FloatAttribute(matDefItem[1]))
+            if matDefName == "specColour":
+                if matDefItem[0] == "col3":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specular_color", FnAttribute.FloatAttribute(matDefItem[1], 3))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "ASNImage%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.specular_color", FnAttribute.StringAttribute("out@" + imageNodeName))
+            elif matDefName == "specRoughness":
+                if matDefItem[0] == "float":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specular_roughness", FnAttribute.FloatAttribute(matDefItem[1]))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "ASNImage%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.specular_roughness", FnAttribute.StringAttribute("out@" + imageNodeName))
+
 
 def processSimpleDefinition(definitionValueString):
     if definitionValueString.find('(') == -1:
@@ -135,14 +228,16 @@ def registerMaterialDescribe():
         interface.setMinRequiredInputs(0)
 
         baseLocationParam = node.getParameter('baseLocation')
+        baseLocationString = baseLocationParam.getValue(0)
 
         materialNameParam = node.getParameter('materialName')
+        materialNameString = materialNameParam.getValue(0)
 
         descriptionParam = node.getParameter('description')
         descriptionString = descriptionParam.getValue(0)
 
-        materialDescription = parseMaterialDescription(descriptionString)
-        print materialDescription
+        materialDefinition = parseMaterialDescription(descriptionString)
+        print materialDefinition
 
         rendererListGroupParam = node.getParameter('rendererList')
         renderersToMakeMatsFor = []
@@ -150,10 +245,24 @@ def registerMaterialDescribe():
         for i in range(0, numRendererItems):
             subItemParam = rendererListGroupParam.getChildByIndex(i)
             intValue = subItemParam.getValue(0)
-            if intValue == 1:
-                renderersToMakeMatsFor.append(MaterialPlugin.pluginsNameList[i])
-        
-        print renderersToMakeMatsFor
+            if intValue == 0:
+                continue
+            
+            rendererName = MaterialPlugin.pluginsNameList[i]
+            renderersToMakeMatsFor.append(rendererName)
+
+            materialLocationPath = os.path.join(baseLocationString, rendererName, materialNameString)
+
+            materialStaticSCB = FnGeolibServices.OpArgsBuilders.StaticSceneCreate()
+            materialStaticSCB.createEmptyLocation(materialLocationPath)
+            materialStaticSCB.setAttrAtLocation(materialLocationPath, 'type', FnAttribute.StringAttribute('material'))
+
+            # invoke the renderer material plugin to create its attributes on the location...
+            pluginResult = MaterialPlugin.pluginsDict[rendererName]
+            pluginInstance = pluginResult[2]
+            pluginInstance.generateMaterialAttributes(materialDefinition, materialStaticSCB, materialLocationPath)
+
+            interface.appendOp("StaticSceneCreate", materialStaticSCB.build())
     
     nodeTypeBuilder = Nodes3DAPI.NodeTypeBuilder('MaterialDescribe')
     
