@@ -213,7 +213,7 @@ class PRManPlugin(MaterialPlugin):
                 tempArrayValue = matDefItem * 3
                 materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularIOR", FnAttribute.FloatAttribute(tempArrayValue, 3))
             elif matDefName == "specColour":
-                materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularFresnelMode", FnAttribute.FloatAttribute(1.0))
+                materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularFresnelMode", FnAttribute.IntAttribute(1))
                 if matDefItem[0] == "col3":
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularEdgeColor", FnAttribute.FloatAttribute(matDefItem[1], 3))
                 elif matDefItem[0] == "image":
