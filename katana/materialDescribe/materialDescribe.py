@@ -149,6 +149,87 @@ class ArnoldPlugin(MaterialPlugin):
                     self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.specular_roughness", FnAttribute.StringAttribute("out@" + imageNodeName))
 
+class PRManPlugin(MaterialPlugin):
+    def pluginInfo(self):
+        # return name and description
+        return ("prman", "PRMan PXR built-in Standard")
+
+    # Because Renderman 22 only seem to read Pixar format textures now (or at least ones created with txmake),
+    # we need some way to allow it to point at different textures. This obviously makes a bit of a mockery of
+    # the whole point of a single neutral Material Definition / Description, but there's not much else we can do,
+    # and the other three renderers support EXRs generated with maketx, so we'll special-case PRMan...
+    def replacementTexture(texturePath):
+        return os.path.splitext(texturePath)[0] + ".tex" 
+    
+    # again, very nastly, but not much else we can do given the premise of the tool and the differences between
+    # renderers' shaders we're not in control of...
+    def adjustSpecRoughness(roughnessValue, microfacetModel):
+        return roughnessValue
+
+    def addImageShadingNode(self, materialStaticSCB, materialLocationPath, imagePath, nodeName):
+        matAttrPath = "material.nodes." + nodeName + "."
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "name", FnAttribute.StringAttribute(nodeName))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "type", FnAttribute.StringAttribute("PxrTexture"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "target", FnAttribute.StringAttribute("prman"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "srcName", FnAttribute.StringAttribute(nodeName))
+
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "parameters.filename", FnAttribute.StringAttribute(imagePath))
+    
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath):
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.style", FnAttribute.StringAttribute("network"))
+
+        nodeName = "PRManShadingNode"
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.terminals.prmanBxdf", FnAttribute.StringAttribute(nodeName))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.terminals.prmanBxdfPort", FnAttribute.StringAttribute("out"))
+
+        matAttrPath = "material.nodes." + nodeName + "."
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "name", FnAttribute.StringAttribute(nodeName))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "type", FnAttribute.StringAttribute("PxrSurface"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "target", FnAttribute.StringAttribute("prman"))
+        materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "srcName", FnAttribute.StringAttribute(nodeName))
+
+        imageNodeCount = 1
+
+        matParamsPath = matAttrPath + "parameters."
+
+        for matDefName, matDefItem in materialDefinition.iteritems():
+            if matDefName == "diffColour":
+                if matDefItem[0] == "col3":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "diffuseColor", FnAttribute.FloatAttribute(matDefItem[1], 3))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "PSNTexture%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.base_color", FnAttribute.StringAttribute("resultRGB@" + imageNodeName))
+            elif matDefName == "diffRoughness":
+                if matDefItem[0] == "float":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "diffuseRoughness", FnAttribute.FloatAttribute(matDefItem[1]))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "PSNTexture%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.diffuseRoughness", FnAttribute.StringAttribute("resultA@" + imageNodeName))
+            elif matDefName == "refraIndex" and matDefItem[0] == "float":
+                tempArrayValue = matDefItem * 3
+                materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specular_IOR", FnAttribute.FloatAttribute(tempArrayValue, 3)
+            if matDefName == "specColour":
+                materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularFresnelMode", FnAttribute.FloatAttribute(1.0))
+                if matDefItem[0] == "col3":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularEdgeColor", FnAttribute.FloatAttribute(matDefItem[1], 3))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "PSNTexture%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.specularEdgeColor", FnAttribute.StringAttribute("resultRGB@" + imageNodeName))
+            elif matDefName == "specRoughness":
+                if matDefItem[0] == "float":
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularRoughness", FnAttribute.FloatAttribute(matDefItem[1]))
+                elif matDefItem[0] == "image":
+                    imageNodeName = "PSNTexture%i" % (imageNodeCount)
+                    imageNodeCount += 1
+                    self.addImageShadingNode(materialStaticSCB, materialLocationPath, matDefItem[1], imageNodeName)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.specularRoughness", FnAttribute.StringAttribute("resultA@" + imageNodeName))
+
 
 def processSimpleDefinition(definitionValueString):
     if definitionValueString.find('(') == -1:
