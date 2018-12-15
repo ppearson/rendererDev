@@ -49,7 +49,11 @@ class ImaginePlugin(MaterialPlugin):
         # return name and description
         return ("imagine", "Imagine built-in")
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertValues):
+    def adjustSpecRoughnessFromAlpha(self, roughnessValue):
+        # convert the value to match
+        return (roughnessValue * roughnessValue)
+    
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
         shaderNameItem = "imagineSurfaceShader"
         shaderParamsItem = "imagineSurfaceParams"
 
@@ -79,7 +83,10 @@ class ImaginePlugin(MaterialPlugin):
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_col_texture", FnAttribute.StringAttribute(matDefItem[1]))
             elif matDefName == "specRoughness":
                 if matDefItem[0] == "float":
-                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_roughness", FnAttribute.FloatAttribute(matDefItem[1]))
+                    actualRoughnessValue = matDefItem[1]
+                    if convertSpecRoughnessValues == 2:
+                        actualRoughnessValue = self.adjustSpecRoughnessFromAlpha(actualRoughnessValue)
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_roughness", FnAttribute.FloatAttribute(actualRoughnessValue))
                 elif matDefItem[0] == "image":
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "spec_roughness_texture", FnAttribute.StringAttribute(matDefItem[1]))
 
@@ -88,7 +95,7 @@ class OtherPlugin(MaterialPlugin):
         # return name and description
         return ("other", "Other SimpleShaders")
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertValues):
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
         shaderNameItem = "otherSurfaceShader"
         shaderParamsItem = "otherSurfaceParams"
 
@@ -117,6 +124,8 @@ class OtherPlugin(MaterialPlugin):
                 elif matDefItem[0] == "image":
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "specularTextureMap", FnAttribute.StringAttribute(matDefItem[1]))
             elif matDefName == "specRoughness":
+                if convertSpecRoughnessValues == 2:
+                    materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "specularRoughnessValueMapping", FnAttribute.FloatAttribute(1.0))
                 if matDefItem[0] == "float":
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, attrLevelItemPath + "specularRoughness", FnAttribute.FloatAttribute(matDefItem[1]))
                 elif matDefItem[0] == "image":
@@ -129,7 +138,7 @@ class ArnoldPlugin(MaterialPlugin):
 
     # again, very nastly, but not much else we can do given the premise of the tool and the differences between
     # renderers' shaders we're not in control of...
-    def adjustSpecRoughness(self, roughnessValue):
+    def adjustSpecRoughnessToAlpha(self, roughnessValue):
         # Arnold's shader param values seem to be the Square of the microfacet alpha value
         return sqrt(roughnessValue)
 
@@ -142,7 +151,7 @@ class ArnoldPlugin(MaterialPlugin):
 
         materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "parameters.filename", FnAttribute.StringAttribute(imagePath))
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertValues):
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
         materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.style", FnAttribute.StringAttribute("network"))
 
         nodeName = "ArnoldShadingNode"
@@ -189,7 +198,7 @@ class ArnoldPlugin(MaterialPlugin):
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.specular_color", FnAttribute.StringAttribute("out@" + imageNodeName))
             elif matDefName == "specRoughness":
                 if matDefItem[0] == "float":
-                    actualRoughnessValue = self.adjustSpecRoughness(matDefItem[1]) if convertValues else matDefItem[1]
+                    actualRoughnessValue = self.adjustSpecRoughnessToAlpha(matDefItem[1]) if convertSpecRoughnessValues == 1 else matDefItem[1]
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specular_roughness", FnAttribute.FloatAttribute(actualRoughnessValue))
                 elif matDefItem[0] == "image":
                     imageNodeName = "ASNImage%i" % (imageNodeCount)
@@ -211,7 +220,7 @@ class PRManPlugin(MaterialPlugin):
     
     # again, very nastly, but not much else we can do given the premise of the tool and the differences between
     # renderers' shaders we're not in control of...
-    def adjustSpecRoughness(self, roughnessValue):
+    def adjustSpecRoughnessToAlpha(self, roughnessValue):
         # PRMan's PXRSurface shader param values seem to be the Square of the microfacet alpha value
         return sqrt(roughnessValue)
 
@@ -225,7 +234,7 @@ class PRManPlugin(MaterialPlugin):
         convertedFilename = self.replacementTexture(imagePath)
         materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "parameters.filename", FnAttribute.StringAttribute(convertedFilename))
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertValues):
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
         materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.style", FnAttribute.StringAttribute("network"))
 
         nodeName = "PRManShadingNode"
@@ -275,7 +284,7 @@ class PRManPlugin(MaterialPlugin):
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "connections.specularEdgeColor", FnAttribute.StringAttribute("resultRGB@" + imageNodeName))
             elif matDefName == "specRoughness":
                 if matDefItem[0] == "float":
-                    actualRoughnessValue = self.adjustSpecRoughness(matDefItem[1]) if convertValues else matDefItem[1]
+                    actualRoughnessValue = self.adjustSpecRoughnessToAlpha(matDefItem[1]) if convertSpecRoughnessValues == 1 else matDefItem[1]
                     materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "specularRoughness", FnAttribute.FloatAttribute(actualRoughnessValue))
                 elif matDefItem[0] == "image":
                     imageNodeName = "PSNTexture%i" % (imageNodeCount)
@@ -370,8 +379,8 @@ def registerMaterialDescribe():
         descriptionParam = node.getParameter('description')
         descriptionString = descriptionParam.getValue(0)
 
-        convertValuesParam = node.getParameter('convertValues')
-        convertValuesValue = bool(convertValuesParam.getValue(0))
+        specRoughnessValuesConversionTypeParam = node.getParameter('specRoughnessValuesConversionType')
+        specRoughnessValuesConversionTypeValue = specRoughnessValuesConversionTypeParam.getValue(0)
 
         materialDefinition = parseMaterialDescription(descriptionString)
 
@@ -396,7 +405,7 @@ def registerMaterialDescribe():
             # invoke the renderer material plugin to create its attributes on the location...
             pluginResult = MaterialPlugin.pluginsDict[rendererName]
             pluginInstance = pluginResult[2]
-            pluginInstance.generateMaterialAttributes(materialDefinition, materialStaticSCB, materialLocationPath, convertValuesValue)
+            pluginInstance.generateMaterialAttributes(materialDefinition, materialStaticSCB, materialLocationPath, specRoughnessValuesConversionTypeValue)
 
             interface.appendOp("StaticSceneCreate", materialStaticSCB.build())
     
@@ -409,7 +418,7 @@ def registerMaterialDescribe():
     
     gb.set('description', FnAttribute.StringAttribute('diffColour = RGB(0.18);'))
 
-    gb.set('convertValues', FnAttribute.IntAttribute(1))
+    gb.set('specRoughnessValuesConversionType', FnAttribute.IntAttribute(1))
 
     rendererListGb = FnAttribute.GroupBuilder()
     for pluginName in MaterialPlugin.pluginsNameList:
@@ -418,6 +427,9 @@ def registerMaterialDescribe():
     
     nodeTypeBuilder.setParametersTemplateAttr(gb.build())
     nodeTypeBuilder.setHintsForParameter('description', {'widget':'scriptEditor'})
+
+    nodeTypeBuilder.setHintsForParameter('specRoughnessValuesConversionType', {'widget' : 'mapper',
+				 'options' : 'none - as raw value per renderer:0|convert to microfacet alpha:1|convert to sqr(roughness):2'})
 
     for pluginName in MaterialPlugin.pluginsNameList:
         nodeTypeBuilder.setHintsForParameter('rendererList.' + pluginName, {'widget':'checkBox'})
