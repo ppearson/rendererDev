@@ -53,7 +53,7 @@ class ImaginePlugin(MaterialPlugin):
         # convert the value to match
         return (roughnessValue * roughnessValue)
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues, enableCausticsInArnold):
         shaderNameItem = "imagineSurfaceShader"
         shaderParamsItem = "imagineSurfaceParams"
 
@@ -95,7 +95,7 @@ class OtherPlugin(MaterialPlugin):
         # return name and description
         return ("other", "Other SimpleShaders")
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues, enableCausticsInArnold):
         shaderNameItem = "otherSurfaceShader"
         shaderParamsItem = "otherSurfaceParams"
 
@@ -140,7 +140,7 @@ class ArnoldPlugin(MaterialPlugin):
     # renderers' shaders we're not in control of...
     def adjustSpecRoughnessToAlpha(self, roughnessValue):
         # Arnold's shader param values seem to be the Square of the microfacet alpha value
-        return sqrt(roughnessValue)
+        return math.sqrt(roughnessValue)
 
     def addImageShadingNode(self, materialStaticSCB, materialLocationPath, imagePath, nodeName):
         matAttrPath = "material.nodes." + nodeName + "."
@@ -151,7 +151,7 @@ class ArnoldPlugin(MaterialPlugin):
 
         materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "parameters.filename", FnAttribute.StringAttribute(imagePath))
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues, enableCausticsInArnold):
         materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.style", FnAttribute.StringAttribute("network"))
 
         nodeName = "ArnoldShadingNode"
@@ -167,6 +167,8 @@ class ArnoldPlugin(MaterialPlugin):
         imageNodeCount = 1
 
         matParamsPath = matAttrPath + "parameters."
+        if enableCausticsInArnold:
+            materialStaticSCB.setAttrAtLocation(materialLocationPath, matParamsPath + "caustics", FnAttribute.IntAttribute(1))
 
         for matDefName, matDefItem in materialDefinition.iteritems():
             if matDefName == "diffColour":
@@ -234,7 +236,7 @@ class PRManPlugin(MaterialPlugin):
         convertedFilename = self.replacementTexture(imagePath)
         materialStaticSCB.setAttrAtLocation(materialLocationPath, matAttrPath + "parameters.filename", FnAttribute.StringAttribute(convertedFilename))
     
-    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues):
+    def generateMaterialAttributes(self, materialDefinition, materialStaticSCB, materialLocationPath, convertSpecRoughnessValues, enableCausticsInArnold):
         materialStaticSCB.setAttrAtLocation(materialLocationPath, "material.style", FnAttribute.StringAttribute("network"))
 
         nodeName = "PRManShadingNode"
@@ -382,6 +384,9 @@ def registerMaterialDescribe():
         specRoughnessValuesConversionTypeParam = node.getParameter('specRoughnessValuesConversionType')
         specRoughnessValuesConversionTypeValue = specRoughnessValuesConversionTypeParam.getValue(0)
 
+        enableCausticsInArnoldParam = node.getParameter('enableCausticsInArnold')
+        enableCausticsInArnoldValue = bool(enableCausticsInArnoldParam.getValue(0))
+
         materialDefinition = parseMaterialDescription(descriptionString)
 
         rendererListGroupParam = node.getParameter('rendererList')
@@ -405,7 +410,8 @@ def registerMaterialDescribe():
             # invoke the renderer material plugin to create its attributes on the location...
             pluginResult = MaterialPlugin.pluginsDict[rendererName]
             pluginInstance = pluginResult[2]
-            pluginInstance.generateMaterialAttributes(materialDefinition, materialStaticSCB, materialLocationPath, specRoughnessValuesConversionTypeValue)
+            # todo: use keyword / dict for all these options...
+            pluginInstance.generateMaterialAttributes(materialDefinition, materialStaticSCB, materialLocationPath, specRoughnessValuesConversionTypeValue, enableCausticsInArnoldValue)
 
             interface.appendOp("StaticSceneCreate", materialStaticSCB.build())
     
@@ -420,6 +426,9 @@ def registerMaterialDescribe():
 
     gb.set('specRoughnessValuesConversionType', FnAttribute.IntAttribute(1))
 
+    # it's pretty annoying that this isn't an Arnold option, but...
+    gb.set('enableCausticsInArnold', FnAttribute.IntAttribute(1))
+
     rendererListGb = FnAttribute.GroupBuilder()
     for pluginName in MaterialPlugin.pluginsNameList:
         rendererListGb.set(pluginName, FnAttribute.IntAttribute(1))
@@ -430,6 +439,8 @@ def registerMaterialDescribe():
 
     nodeTypeBuilder.setHintsForParameter('specRoughnessValuesConversionType', {'widget' : 'mapper',
 				 'options' : 'none - as raw value per renderer:0|convert to microfacet alpha:1|convert to sqr(roughness):2'})
+    
+    nodeTypeBuilder.setHintsForParameter('enableCausticsInArnold', {'widget':'checkBox'})
 
     for pluginName in MaterialPlugin.pluginsNameList:
         nodeTypeBuilder.setHintsForParameter('rendererList.' + pluginName, {'widget':'checkBox'})
