@@ -1,6 +1,6 @@
 /*
  InstancesCreate
- Created by Peter Pearson in 2016-2018.
+ Created by Peter Pearson in 2016-2019.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
@@ -54,8 +54,8 @@ public:
 	static void cook(Foundry::Katana::GeolibCookInterface& interface);
 	
 protected:
-	static void create2DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
-	static void create3DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
+	static void create2DGrid(unsigned int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
+	static void create3DGrid(unsigned int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
 };
 
 #endif // INSTANCEROP_H

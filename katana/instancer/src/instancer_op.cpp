@@ -1,6 +1,6 @@
 /*
  InstancesCreate
- Created by Peter Pearson in 2016-2018.
+ Created by Peter Pearson in 2016-2019.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		FnAttribute::IntAttribute numInstancesAttr = aGroupAttr.getChildByName("numInstances");
 		FnAttribute::IntAttribute groupInstancesAttr = aGroupAttr.getChildByName("groupInstances");
 
-		int numInstances = numInstancesAttr.getValue(0, false);
+		unsigned int numInstances = (unsigned int)numInstancesAttr.getValue(0, false);
 		if (numInstances == 0)
 		{
 			return;
@@ -305,16 +305,18 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 	}
 }
 
-void InstancerOp::create2DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions)
+void InstancerOp::create2DGrid(unsigned int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions)
 {
 	// round up to the next square number, so we get a good even distribution for both X and Y
-	int edgeCount = (int)(std::sqrt((float)numItems));
+	unsigned int edgeCount = (unsigned int)(std::sqrt((float)numItems));
 	if (edgeCount * edgeCount < numItems)
 		edgeCount += 1;
 
-	int fullItemCount = edgeCount * edgeCount;
+	unsigned int fullItemCount = edgeCount * edgeCount;
 
-	int extra = fullItemCount - numItems;
+	unsigned int extra = fullItemCount - numItems;
+	
+	fprintf(stderr, "Creating 2D grid of: %u items, 'full' size: %u.\n", numItems, fullItemCount);
 	
 	aItemPositions.clear();
 
@@ -339,9 +341,9 @@ void InstancerOp::create2DGrid(int numItems, const Vec3& areaSpread, std::vector
 	{
 		// we need to skip certain items
 		
-		int skipStride = fullItemCount / extra;
+		unsigned int skipStride = fullItemCount / extra;
 		
-		int count = 0;
+		unsigned int count = 0;
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
 			const float xPos = xPositions[xInd];
@@ -376,16 +378,18 @@ void InstancerOp::create2DGrid(int numItems, const Vec3& areaSpread, std::vector
 	}
 }
 
-void InstancerOp::create3DGrid(int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions)
+void InstancerOp::create3DGrid(unsigned int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions)
 {
 	// round up to the next cube number, so we get a good even distribution for both X, Y and Z
-	int edgeCount = (int)(cbrtf((float)numItems));
+	unsigned int edgeCount = (unsigned int)(cbrtf((float)numItems));
 	if (edgeCount * edgeCount * edgeCount < numItems)
 		edgeCount += 1;
 
-	int fullItemCount = edgeCount * edgeCount * edgeCount;
+	unsigned int fullItemCount = edgeCount * edgeCount * edgeCount;
 
-	int extra = fullItemCount - numItems;
+	unsigned int extra = fullItemCount - numItems;
+	
+	fprintf(stderr, "Creating 3D grid of: %u items, 'full' size: %u.\n", numItems, fullItemCount);
 	
 	aItemPositions.clear();
 
@@ -412,9 +416,9 @@ void InstancerOp::create3DGrid(int numItems, const Vec3& areaSpread, std::vector
 	{
 		// we need to skip certain items
 		
-		int skipStride = fullItemCount / extra;
+		unsigned int skipStride = fullItemCount / extra;
 		
-		int count = 0;
+		unsigned int count = 0;
 		for (unsigned int xInd = 0; xInd < edgeCount; xInd++)
 		{
 			const float xPos = xPositions[xInd];
