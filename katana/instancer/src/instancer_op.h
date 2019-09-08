@@ -1,6 +1,6 @@
 /*
  InstancesCreate
- Created by Peter Pearson in 2016-2019.
+ Copyright 2016-2019 Peter Pearson.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
@@ -54,8 +54,20 @@ public:
 	static void cook(Foundry::Katana::GeolibCookInterface& interface);
 	
 protected:
+	
+	enum CreatedShapeType
+	{
+		eShapeTypeGrid2D,
+		eShapeTypeGrid3D,
+		eShapeTypePointsFileASCII,
+		eShapeTypePointsFileBinary
+	};
+	
 	static void create2DGrid(unsigned int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
 	static void create3DGrid(unsigned int numItems, const Vec3& areaSpread, std::vector<Vec3>& aItemPositions);
+	
+	static void readPositionsFromASCIIFile(const std::string& positionFilePath, std::vector<Vec3>& aItemPositions);
+	static void readPositionsFromBinaryFile(const std::string& positionFilePath, std::vector<Vec3>& aItemPositions);
 };
 
 #endif // INSTANCEROP_H

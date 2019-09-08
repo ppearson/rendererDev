@@ -1,6 +1,6 @@
 /*
  InstancesCreate
- Created by Peter Pearson in 2016-2019.
+ Copyright 2016-2019 Peter Pearson.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  You may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "instancer_op.h"
 
 #include <sstream>
+#include <fstream>
 #include <cmath>
 
 #include <stdio.h>
@@ -65,12 +66,18 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			sourceLocation = sourceLocationAttr.getValue("", false);
 		}
 		
-		FnAttribute::IntAttribute instanceTypeAttr = aGroupAttr.getChildByName("instanceType");
-		bool threeD = false;
-		FnAttribute::IntAttribute threeDAttr = aGroupAttr.getChildByName("threeD");
-		if (threeDAttr.isValid())
+		FnAttribute::IntAttribute createdShapeTypeAttr = aGroupAttr.getChildByName("createdShapeType");
+		CreatedShapeType createdShapeType;
+		if (createdShapeTypeAttr.isValid())
 		{
-			threeD = threeDAttr.getValue(0, false) == 1;
+			createdShapeType = (CreatedShapeType)createdShapeTypeAttr.getValue(0, false);
+		}
+		
+		std::string positionsFilePath;
+		FnAttribute::StringAttribute positionsFilePathAttr = aGroupAttr.getChildByName("positionsFilePath");
+		if (positionsFilePathAttr.isValid())
+		{
+			positionsFilePath = positionsFilePathAttr.getValue("", false);
 		}
 		
 		bool floatFormat = false;
@@ -103,7 +110,7 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 			createInstanceIndexAttribute = createInstanceIndexAttributeAttr.getValue(1, false);
 		}
 		
-		Vec3 areaSpread(20.0f, 20.0f, 20.0f);
+		Vec3 areaSpread(200.0f, 200.0f, 200.0f);
 		FnAttribute::FloatAttribute areaSpreadAttr = aGroupAttr.getChildByName("areaSpread");
 		if (areaSpreadAttr.isValid())
 		{
@@ -115,13 +122,23 @@ void InstancerOp::cook(Foundry::Katana::GeolibCookInterface& interface)
 		}
 				
 		// we're dangerously assuming that this will be run first...
-		if (!threeD)
+		if (createdShapeType == eShapeTypeGrid2D)
 		{
 			create2DGrid(numInstances, areaSpread, aTranslates);
 		}
-		else
+		else if (createdShapeType == eShapeTypeGrid3D)
 		{
 			create3DGrid(numInstances, areaSpread, aTranslates);
+		}
+		else if (createdShapeType == eShapeTypePointsFileASCII)
+		{
+			readPositionsFromASCIIFile(positionsFilePath, aTranslates);
+			numInstances = aTranslates.size();
+		}
+		else if (createdShapeType == eShapeTypePointsFileBinary)
+		{
+			readPositionsFromBinaryFile(positionsFilePath, aTranslates);
+			numInstances = aTranslates.size();
 		}
 		
 		if (!instanceArray)
@@ -457,6 +474,71 @@ void InstancerOp::create3DGrid(unsigned int numItems, const Vec3& areaSpread, st
 			}
 		}
 	}
+}
+
+void InstancerOp::readPositionsFromASCIIFile(const std::string& positionFilePath, std::vector<Vec3>& aItemPositions)
+{
+	std::ios::sync_with_stdio(false);
+	
+	std::fstream fileStream;
+	fileStream.open(positionFilePath.c_str(), std::ios::in);
+	if (!fileStream.is_open() || fileStream.fail())
+	{
+		fprintf(stderr, "Error: Can't open ASCII position file: %s\n", positionFilePath.c_str());
+		return;
+	}
+	
+	fprintf(stdout, "Reading positions from ASCII file: %s\n", positionFilePath.c_str());
+	
+	Vec3 temp;
+	
+	// TODO: might be worth special-casing looking for comment count Imagine puts in there, so we can
+	//       do a reserve?
+	
+	char buf[512];
+	while (fileStream.getline(buf, 512))
+	{
+		if (buf[0] == '#' || buf[0] == 0)
+			continue;
+		
+		sscanf(buf, "%f, %f, %f", &temp.x, &temp.y, &temp.z);
+		
+		aItemPositions.push_back(temp);
+	}
+	
+	fprintf(stderr, "Loaded %u positions from file.\n", (unsigned int)aItemPositions.size());
+}
+
+void InstancerOp::readPositionsFromBinaryFile(const std::string& positionFilePath, std::vector<Vec3>& aItemPositions)
+{
+	FILE* pFile = fopen(positionFilePath.c_str(), "rb");
+	if (!pFile)
+	{
+		fprintf(stderr, "Error: Can't open binary position file: %s\n", positionFilePath.c_str());
+		return;
+	}
+	
+	fprintf(stdout, "Reading positions from binary file: %s\n", positionFilePath.c_str());
+	
+	float extent[3];
+	fread(&extent[0], sizeof(float), 3, pFile);
+	fprintf(stdout, "Positions original shape extent: (%f, %f, %f)\n", extent[0], extent[1], extent[2]);
+	
+	unsigned int numPositions = 0;
+	fread(&numPositions, sizeof(unsigned int), 1, pFile);
+	
+	aItemPositions.resize(numPositions);
+	
+	std::vector<Vec3>::iterator itItem = aItemPositions.begin();
+	for (; itItem != aItemPositions.end(); ++itItem)
+	{
+		Vec3& pos = *itItem;
+		fread(&pos.x, sizeof(float), 3, pFile);
+	}
+	
+	fclose(pFile);
+	
+	fprintf(stderr, "Loaded %u positions from file.\n", numPositions);
 }
 
 DEFINE_GEOLIBOP_PLUGIN(InstancerOp)
